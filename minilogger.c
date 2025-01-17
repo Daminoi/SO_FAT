@@ -3,11 +3,11 @@
 
 #include "minilogger.h"
 
-void mini_log(miniLogLevel log_level, const char* const function_name, const int line, const char* const txt){
+void mini_log(miniLogLevel log_level, const char* const function_name, const char* const msg){
     #ifdef DEBUG
     char log_string[10];
 
-    if(txt == NULL){
+    if(msg == NULL){
         return;
     }
 
@@ -30,13 +30,10 @@ void mini_log(miniLogLevel log_level, const char* const function_name, const int
     }
 
     if(function_name == NULL){
-        printf("%s: %s\n", log_string, txt);
-    }
-    else if(function_name != NULL && line < 0){
-        printf("%s (%s): %s\n", log_string, function_name, txt);
+        printf("%s: %s\n", log_string, msg);
     }
     else{
-        printf("%s (%s at line %d): %s\n", log_string, function_name, line, txt);
+        printf("%s (func %s): %s\n", log_string, function_name, msg);
     }
     #endif
 

@@ -8,13 +8,12 @@ typedef enum miniLogLevel{
     WARNING,
     INFO,
     LOG
-}miniLogLevel;
+} miniLogLevel;
 
 /*
     Può essere usato specificando tutti i parametri oppure soltanto:
-    - log_level e txt, ponendo function a NULL e line a -1
-    - log_level e function e txt, ponendo line a -1
+    - log_level e txt, ponendo function a NULL
 */
-void mini_log(miniLogLevel log_level, const char* const function_name, const int line, const char* const txt);
+void mini_log(miniLogLevel log_level, const char* const function_name, const char* const msg);
 
 #endif /* MINILOGGER_H */
