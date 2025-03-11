@@ -1,4 +1,3 @@
-#include <cstddef>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -54,11 +53,11 @@ BLOCK* _get_block_section(const FAT_FS* fs){
 void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
     if(is_not_null_fs(fs) && block_to_clear >= 0 && block_to_clear < _get_header(fs)->n_blocks){
         memset(&(_get_block_section(fs)[block_to_clear]), 0, BLOCK_SIZE);
-        printf("EXTRA: (clear_block) Azzerato blocco %d\n", block_to_clear);
+        printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
         //mini_log(LOG, "clear_block", "Blocco azzerato");
     }
     else{
-        printf("EXTRA: (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
+        printf("EXTRA (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
         //mini_log(ERROR, "clear_block", "Impossibile azzerare un blocco");
     }
 }
@@ -231,7 +230,7 @@ bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
 
 int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     if(FILE_ENTRIES_PER_DIR_BLOCK <= 1){
-        mini_log(ERROR, "create_fs_on_file", "Dimensione dei blocchi troppo piccola per il funzionamento del File System!");
+        mini_log(ERROR, "create_fs_on_file", "Dimensione dei blocchi troppo piccola per il funzionamento del File System (FILE_ENTRIES_PER_DIR_BLOCK <= 1)!");
         return -1;
     }
     
