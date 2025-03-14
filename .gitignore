@@ -53,4 +53,6 @@ dkms.conf
 
 # File fat creato dal programma
 .myfat
+
+# Nome dell'eseguibile del programma creato dal Makefile
 so_fat_exec
