@@ -53,3 +53,4 @@ dkms.conf
 
 # File fat creato dal programma
 .myfat
+so_fat_exec

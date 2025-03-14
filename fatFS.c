@@ -228,6 +228,8 @@ bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
     return true;
 }
 
+// Il parametro file_name è inutilizzato, per ora il file avrà sempre nome fat.myfat.
+// Restituisce 0 in caso di successo, -1 altrimenti.
 int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     if(FILE_ENTRIES_PER_DIR_BLOCK <= 1){
         mini_log(ERROR, "create_fs_on_file", "Dimensione dei blocchi troppo piccola per il funzionamento del File System (FILE_ENTRIES_PER_DIR_BLOCK <= 1)!");
@@ -385,10 +387,10 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
 
     // Nota la modalità di apertura del file! rb+ significa apri in lettura/scrittura un file binario che esiste già (e non crearlo se non esiste)!
     if((file_with_fs = fopen(file_name, "rb+")) == NULL){
-        mini_log(ERROR, "_load_fs_from_file", "Impossibile aprire il file.");
+        mini_log(ERROR, "mount_fs_from_file", "Impossibile aprire il file.");
         return NULL;
     }
-    mini_log(LOG, "_load_fs_from_file", "File aperto.");
+    mini_log(LOG, "mount_fs_from_file", "File aperto.");
 
 
     /*
@@ -400,7 +402,7 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     unsigned long file_size = file_stats.st_size;
 
     if(file_size <= sizeof(FAT_FS_HEADER)){
-        mini_log(ERROR, "_load_fs_from_file", "Il file non è formattato correttamente (dimensione minima non rispettata)");
+        mini_log(ERROR, "mount_fs_from_file", "Il file non è formattato correttamente (dimensione minima non rispettata)");
         fclose(file_with_fs);
         return NULL;
     }
@@ -408,7 +410,7 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     void* mmapped_fs;
     mmapped_fs = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(file_with_fs), 0);
     if(mmapped_fs == MAP_FAILED){
-        mini_log(ERROR, "_load_fs_from_file", "Impossibile eseguire la mappatura del file su RAM?");
+        mini_log(ERROR, "mount_fs_from_file", "Impossibile eseguire la mappatura del file su RAM?");
         perror("");
         fclose(file_with_fs);
         return NULL;
@@ -422,20 +424,23 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     FAT_FS_HEADER* header = (FAT_FS_HEADER*)mmapped_fs;
 
     if(header->version != CURRENT_FS_VERSION){
-        mini_log(ERROR, "_load_fs_from_file", "Versione del fs sul file diversa da quella supportata.");
+        mini_log(ERROR, "mount_fs_from_file", "Versione del fs sul file diversa da quella supportata.");
         fclose(file_with_fs);
+        munmap(mmapped_fs, file_size);
         return NULL;
     }
     if(header->n_blocks <= 0){
-        mini_log(ERROR, "_load_fs_from_file", "Numero di blocchi non corretto (n_blocchi <= 0) !.");
+        mini_log(ERROR, "mount_fs_from_file", "Numero di blocchi non corretto (n_blocchi <= 0) !.");
         fclose(file_with_fs);
+        munmap(mmapped_fs, file_size);
         return NULL;
     }
 
     unsigned int expected_file_size = sizeof(FAT_FS_HEADER) + (sizeof(FAT_ENTRY) * (header->n_blocks)) + (sizeof(BLOCK) * (header->n_blocks)); 
     if(file_size < expected_file_size){
-        mini_log(ERROR, "_load_fs_from_file", "File non formattato correttamente (dimensione insufficiente rispetto alle informazioni nell'header)!");
+        mini_log(ERROR, "mount_fs_from_file", "File non formattato correttamente (dimensione insufficiente rispetto alle informazioni nell'header)!");
         fclose(file_with_fs);
+        munmap(mmapped_fs, file_size);
         return NULL;
     }
 
@@ -457,7 +462,8 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     MOUNTED_FS* mounted_fs = (MOUNTED_FS*) malloc(sizeof(MOUNTED_FS));
     if(fs == NULL || mounted_fs == NULL){
         fclose(file_with_fs);
-        mini_log(ERROR, "_load_fs_from_file", "Impossibile allocare dinamicamente le strutture dati necessarie per il fs");
+        mini_log(ERROR, "mount_fs_from_file", "Impossibile allocare dinamicamente le strutture dati necessarie per il fs");
+        munmap(mmapped_fs, file_size);
         return NULL;
     }
 
@@ -473,5 +479,43 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     mounted_fs->fs = fs;
     mounted_fs->curr_dir_block = 0;
 
+    fclose(file_with_fs); // chiudo il flusso, il file resterà comunque a disposizione del processo dato che è mmappato
+
+    mini_log(INFO, "mount_fs_from_file", "File System montato con successo.");
     return mounted_fs;
+}
+
+int unmount_fs(MOUNTED_FS* m_fs){
+    if(m_fs == NULL){
+        mini_log(WARNING, "unmount_fs", "Tentativo di unmount di un fs nullo");
+        return 0;
+    }
+
+    if(is_not_null_fs(m_fs->fs) == false){
+        mini_log(ERROR, "unmount_fs", "Il fs non è popolato con la struttura dati necessaria!");
+        return -1;
+    }
+
+    // Passo 1: Leggi l'header del fs, verificane la correttezza (?), ottieni le dimensioni del fs
+    // Salto la verifica della correttezza
+    unsigned n_blocks = ((FAT_FS_HEADER*)m_fs->fs->start_location)->n_blocks;
+    unsigned long fs_size = sizeof(FAT_FS_HEADER) + (n_blocks * (sizeof(FAT_ENTRY) + sizeof(BLOCK)));
+
+    // Passo 2: Esegui munmap del fs
+    if(munmap(m_fs->fs->start_location, fs_size)){
+        mini_log(ERROR, "unmount_fs", "Munmap fallita");
+        perror("");
+
+        free(m_fs->fs);
+        free(m_fs);
+        return -1;
+    }
+
+    // Passo 3: dealloca le strutture dati allocate dinamicamente (FAT_FS e MOUNTED_FAT_FS)
+    free(m_fs->fs);
+    free(m_fs);
+
+    mini_log(INFO, "unmount_fs", "File System unmount completato con successo.");
+
+    return 0;
 }

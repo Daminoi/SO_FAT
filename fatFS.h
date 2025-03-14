@@ -116,14 +116,14 @@ typedef struct FAT_FS{
 
 typedef struct MOUNTED_FS{
     FAT_FS* fs;
-    block_num_t curr_dir_block;    // curr_dir punta al primo blocco della cartella attuale (deve essere sempre valido)
+    block_num_t curr_dir_block;    // curr_dir punta al primo blocco della cartella in cui ci trova al momento (deve essere sempre valido)
 } MOUNTED_FS;
 
 /* file_name per ora non è utilizzato, viene sempre creato un nuovo file fat.myfat */
 int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
 
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);
-int unmount_fs(FAT_FS* fs);
+int unmount_fs(MOUNTED_FS* fs);
 
 unsigned long int _fs_size(FAT_FS* fs);
 
