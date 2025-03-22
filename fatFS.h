@@ -3,10 +3,6 @@
 
 #define CURRENT_FS_VERSION 1
 
-#include <stdbool.h>
-
-#include "minilogger.h"
-
 #define byte_offset unsigned long int
 #define block_num_t int             // Deve essere intero ed avere il valore -1 nel suo dominio
 
@@ -33,8 +29,8 @@
 #define DIR_REF_ROOT 4
 
 /*
-    La prima DIR_ENTRY di ogni blocco (tranne nel caso che quel blocco sia il primo di un file o di una cartella)
-    punta al primo blocco di quel file o quella cartella
+    La prima DIR_ENTRY di ogni blocco di una cartella (tranne nel caso che quel blocco sia il primo della cartella)
+    punta al primo blocco di quella cartella
 */
 #define DIR_REF 5
 
@@ -73,7 +69,6 @@ typedef struct DIR_ENTRY{
             /*
                 L'entry si troverà nella cartella nel blocco block a una certa posizione (es. il primo file in una cartella ha offset 0, il 120esimo ha offset 119)
                 Nel calcolo dell'offset sono escluse le entry necessarie per il mantenimento della gerarchia che si trovano all'inizio di ogni blocco
-                (2 nel primo blocco di ogni cartella, uno nei blocchi successivi)
             */
             block_num_t block;
             unsigned int file_entry_offset; 
@@ -95,8 +90,12 @@ typedef struct BLOCK{
 
 // Se un blocco è l'ultimo di un file, avrà questo valore nel campo next_block della fat
 #define LAST_BLOCK -1
-// un valore invalido generico
+
+// un valore invalido per indicare un errore nel ritorno di un numero di blocco
 #define INVALID_BLOCK -2
+
+// viene restituito se si prova a risalire la gerarchia delle cartelle e si prova a ottenere il blocco del padre della cartella root (che ovviamente non esiste)
+#define ROOT_DIR_HAS_NO_PARENT -3
 
 // Valori che può assumere il campo block_status nella fat
 #define FREE_BLOCK 0
@@ -125,29 +124,19 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);
 int unmount_fs(MOUNTED_FS* fs);
 
-unsigned long int _fs_size(FAT_FS* fs);
+// Funzioni fondamentali
 
-
-// Funzioni a "basso" livello
-
-unsigned int get_n_blocks(const FAT_FS* fs);
-unsigned int get_n_free_blocks(const FAT_FS* fs);
-
-bool _has_next_block(const FAT_FS* fs, block_num_t curr_block);
-block_num_t _get_next_block(const FAT_FS* fs, block_num_t curr_block);
-
-block_num_t _get_parent_dir_block(const FAT_FS* fs, block_num_t curr_dir_block);
-
+/*
+int _create_dir(FAT_FS* fs, DIR_ENTRY* curr_dir, DIR_ENTRY* new_dir);
 int _create_file(FAT_FS* fs, DIR_ENTRY* dir, DIR_ENTRY* new_file); // il contenuto puntato da new_file verrà copiato nel nuovo file nella cartella directory
 int _erase_file(FAT_FS* fs, DIR_ENTRY* file);
 
-int _create_dir(FAT_FS* fs, DIR_ENTRY* dir, DIR_ENTRY* new_dir);
 int _erase_dir(FAT_FS* fs, DIR_ENTRY* dir_to_erase);
 
-int _write(FAT_FS* fs, DIR_ENTRY* file, unsigned int n_bytes, void* from_buffer);
+int _write(DIR_ENTRY* file, unsigned int n_bytes, void* from_buffer);
 // Da vedere come dividere su più file
-int _read(/*FAT_FS* fs,*/DIR_ENTRY* file, unsigned int n_bytes, void* dest_buffer);
-
+int _read(DIR_ENTRY* file, unsigned int n_bytes, void* dest_buffer);
+*/
 
 // Richieste da completare affinché il progetto sia completo
 

@@ -8,225 +8,10 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "minilogger.h"
 #include "fatFS.h"
-
-/* Semplice, per ora, controllo di validità del fs (TODO) */
-bool is_not_null_fs(const FAT_FS* fs){
-    
-    if(fs == NULL) return false;
-    /*
-    if(fs->header == NULL) return false;
-    if(fs->fat == NULL) return false;
-    if(fs->block_section == NULL) return false;
-    */
-    return true; 
-}
-
-FAT_FS_HEADER* _get_header(const FAT_FS* fs){
-    return (FAT_FS_HEADER*) fs->start_location;
-}
-
-// Restituisce il puntatore all'inizio della sezione della fat
-FAT_ENTRY* _get_fat(const FAT_FS* fs){
-    if(is_not_null_fs(fs)){
-        return (FAT_ENTRY*) (fs->start_location + fs->fat_offset);
-    }
-    else{
-        mini_log(ERROR, "_get_fat", "fs nullo");
-        return NULL;
-    }
-}
-
-// Restituisce il puntatore all'inizio della sezione dei blocchi del fs
-BLOCK* _get_block_section(const FAT_FS* fs){
-    if(is_not_null_fs(fs)){
-        return (BLOCK*) (fs->start_location + fs->block_section_offset);
-    }
-    else{
-        mini_log(ERROR, "_get_block_section", "fs nullo");
-        return NULL;
-    }
-}
-
-/* Pone tutti i byte del blocco a 0, non lo dealloca */
-void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
-    if(is_not_null_fs(fs) && block_to_clear >= 0 && block_to_clear < _get_header(fs)->n_blocks){
-        memset(&(_get_block_section(fs)[block_to_clear]), 0, BLOCK_SIZE);
-        printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
-        //mini_log(LOG, "clear_block", "Blocco azzerato");
-    }
-    else{
-        printf("EXTRA (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
-        //mini_log(ERROR, "clear_block", "Impossibile azzerare un blocco");
-    }
-}
-
-unsigned int get_n_free_blocks(const FAT_FS* fs){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "get_n_free_blocks", "Fs nullo!");
-        return 0;
-    }
-    else return _get_header(fs)->n_free_blocks;
-}
-
-unsigned int get_n_blocks(const FAT_FS* fs){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "get_n_blocks", "Fs nullo!");
-        return 0;
-    }
-    else return _get_header(fs)->n_blocks;
-}
-
-// Restituisce true se il blocco è libero (fat[block].block_status == FREE_BLOCK)
-bool _is_free_block(const FAT_FS* fs, block_num_t block){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "_is_free_block", "Fs nullo!");
-        return false;
-    }
-    else return _get_fat(fs)[block].block_status == FREE_BLOCK;
-}
-
-bool _has_next_block(const FAT_FS* fs, block_num_t curr_block){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "_has_next_block", "Fs nullo!");
-        return false;
-    }
-    else return _get_fat(fs)[curr_block].next_block >= 0;
-}
-
-block_num_t _get_next_block(const FAT_FS* fs, block_num_t curr_block){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "_get_next_block", "Fs nullo!");
-        return INVALID_BLOCK;
-    }
-    else return _get_fat(fs)[curr_block].next_block;
-}
-
-bool _is_valid_block(const FAT_FS* fs, block_num_t block){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "_is_valid_block", "Fs nullo!");
-        return false;
-    }
-
-    return block >= 0 && block < get_n_blocks(fs);
-}
-
-
-
-
-
-// Funzioni complesse
-
-// Restituisce il numero del blocco allocato
-block_num_t _allocate_block(const FAT_FS* fs){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "allocate_block", "Impossibile operare su un fs nullo.");
-        return -1;
-    }
-
-    if(get_n_free_blocks(fs) < 0){
-        mini_log(ERROR, "allocate_block", "File system corrotto: blocchi liberi negativi!");
-        return -1;
-    }
-
-    if(get_n_free_blocks(fs) == 0){
-        mini_log(WARNING, "allocate_block", "Blocchi liberi terminati.");
-        return -1;
-    }
-
-    FAT_FS_HEADER* header = _get_header(fs);
-    FAT_ENTRY* fat = _get_fat(fs);
-
-    /* Non è un controllo sufficiente per tutti i casi */
-    if(header->first_free_block < 0 || header->first_free_block == ROOT_DIR_STARTING_BLOCK || header->last_free_block < 0 || header->last_free_block == ROOT_DIR_STARTING_BLOCK ){
-        mini_log(ERROR, "allocate_block", "File system corrotto: invalido first_free_block o last_free_block.");
-        return -1;
-    }
-
-    if(fat[header->first_free_block].block_status != FREE_BLOCK || fat[header->last_free_block].block_status != FREE_BLOCK){
-        mini_log(ERROR, "allocate_block", "File system corrotto: first_free_block o last_free_block non sono blocchi liberi.");
-        return -1;
-    }
-
-    block_num_t allocated_block;
-
-    if(header->n_free_blocks == 1){
-        if(header->first_free_block != header->last_free_block){
-            mini_log(ERROR, "allocate_block", "File system corrotto: disponibile un solo blocco libero ma first_free_block e last_free_block sono diversi!");
-            return -1;
-        }
-
-        allocated_block = header->first_free_block;
-        header->first_free_block = -1;
-        header->last_free_block = -1;
-
-    }
-    else{   /* n_free_blocks >= 2 */
-
-        allocated_block = header->first_free_block;
-        header->first_free_block = fat[header->first_free_block].next_block;
-    }
-
-    fat[allocated_block].block_status = ALLOCATED_BLOCK;
-    fat[allocated_block].next_block = LAST_BLOCK;
-
-    header->n_free_blocks--;
-    
-    clear_block(fs, allocated_block);
-    return allocated_block;
-}
-
-
-// Dealloca un blocco, il blocco deve essere l'ultimo del file a cui appartiene (fat[block_to_free] == LAST_BLOCK)
-bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
-    if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "free_block", "Impossibile operare su un fs nullo o non valido.");
-        return false;
-    }
-
-    if(_is_valid_block(fs, block_to_free) == false){
-        mini_log(ERROR, "free_block", "Blocco da liberare non esistente!");
-        return false;
-    }
-
-    if(block_to_free == ROOT_DIR_STARTING_BLOCK){
-        mini_log(ERROR, "free_block", "Tentativo di liberare il blocco 0 (inizio root directory)!");
-        return false;
-    }
-
-    FAT_FS_HEADER* header = _get_header(fs);
-    FAT_ENTRY* fat = _get_fat(fs);
-    
-    if(fat[block_to_free].block_status == FREE_BLOCK){
-        mini_log(ERROR, "free_block", "Non si può deallocare un blocco già libero!");
-        return false;
-    }
-    
-    if(fat[block_to_free].next_block != LAST_BLOCK){
-        mini_log(ERROR, "free_block", "Non può essere deallocato un blocco che non sia l'ultimo del file! (next_block != LAST_BLOCK)!");
-        return false;
-    }
-
-    // Da qui la logica per la deallocazione di un blocco
-
-    fat[block_to_free].block_status = FREE_BLOCK;
-    fat[block_to_free].next_block = LAST_BLOCK;
-
-    if(get_n_free_blocks(fs) == 0){
-        header->first_free_block = block_to_free;
-        header->last_free_block = block_to_free;
-    }
-    else if(get_n_free_blocks(fs) >= 1){
-        fat[header->last_free_block].next_block = block_to_free;
-        header->last_free_block = block_to_free;
-    }
-
-    header->n_free_blocks++;
-
-    mini_log(LOG, "free_block", "Blocco deallocato con successo.");
-    return true;
-}
+#include "fsUtils.h"
+#include "fsFunctions.h"
+#include "minilogger.h"
 
 // Il parametro file_name è inutilizzato, per ora il file avrà sempre nome fat.myfat.
 // Restituisce 0 in caso di successo, -1 altrimenti.
@@ -303,7 +88,7 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     new_fs.block_section_offset = new_fs.fat_offset + (sizeof(FAT_ENTRY) * n_blocks);
 
     // Inizializzo l'header
-    FAT_FS_HEADER* header = _get_header(&new_fs);
+    FAT_FS_HEADER* header = get_fs_header(&new_fs);
 
 
     header->n_blocks = n_blocks;
@@ -321,7 +106,7 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     /* Inizializzo i blocchi vuoti (come se fossero i blocchi di un unico grande file) */
     block_num_t free_blocks_to_validate = header->n_free_blocks;
 
-    FAT_ENTRY* fat = _get_fat(&new_fs);
+    FAT_ENTRY* fat = get_fs_fat(&new_fs);
     // curr_block inizia da 1 perchè 0 è il primo blocco della root dir
     for(int curr_block = 1; free_blocks_to_validate > 0; free_blocks_to_validate--){
         
@@ -349,7 +134,7 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     clear_block(&new_fs, ROOT_DIR_STARTING_BLOCK);
 
     // Creo la DIR_ENTRY[0] della root dir, con le informazioni necessarie
-    BLOCK* first_root_dir_block = _get_block_section(&new_fs);
+    BLOCK* first_root_dir_block = get_fs_block_section(&new_fs);
     DIR_ENTRY* first_dir_entry = ((DIR_ENTRY*)first_root_dir_block);
 
     first_dir_entry->name[0] = '/';
