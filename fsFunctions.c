@@ -2,12 +2,13 @@
 #include <string.h>
 
 #include "fsFunctions.h"
+#include "fatFS.h"
 #include "fsUtils.h"
 #include "minilogger.h"
 
 void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
-    if(is_not_null_fs(fs) && block_to_clear >= 0 && block_to_clear < get_fs_header(fs)->n_blocks){
-        memset(&(get_fs_block_section(fs)[block_to_clear]), 0, BLOCK_SIZE);
+    if(is_not_null_fs(fs) && is_block_valid(fs, block_to_clear)){
+        memset(((get_fs_block_section(fs) + block_to_clear)), 0, BLOCK_SIZE);
         printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
         //mini_log(LOG, "clear_block", "Blocco azzerato");
     }
@@ -17,7 +18,7 @@ void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
     }
 }
 
-block_num_t _allocate_block(const FAT_FS* fs){
+block_num_t allocate_block(const FAT_FS* fs){
     if(is_not_null_fs(fs) == false){
         mini_log(ERROR, "allocate_block", "Impossibile operare su un fs nullo.");
         return -1;
@@ -75,7 +76,7 @@ block_num_t _allocate_block(const FAT_FS* fs){
     return allocated_block;
 }
 
-bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
+bool free_block(const FAT_FS* fs, const block_num_t block_to_free){
     if(is_not_null_fs(fs) == false){
         mini_log(ERROR, "free_block", "Impossibile operare su un fs nullo o non valido.");
         return false;
@@ -94,15 +95,17 @@ bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
     FAT_FS_HEADER* header = get_fs_header(fs);
     FAT_ENTRY* fat = get_fs_fat(fs);
     
-    if(fat[block_to_free].block_status == FREE_BLOCK){
+    if(is_block_free(fs, block_to_free)){
         mini_log(ERROR, "free_block", "Non si può deallocare un blocco già libero!");
         return false;
     }
     
+    /*
     if(fat[block_to_free].next_block != LAST_BLOCK){
         mini_log(ERROR, "free_block", "Non può essere deallocato un blocco che non sia l'ultimo del file! (next_block != LAST_BLOCK)!");
         return false;
     }
+    */
 
     // Da qui la logica per la deallocazione di un blocco
 
@@ -122,4 +125,32 @@ bool _free_block(const FAT_FS* fs, const block_num_t block_to_free){
 
     mini_log(LOG, "free_block", "Blocco deallocato con successo.");
     return true;
+}
+
+int write_to_file_block(const FAT_FS* fs, const block_num_t block_to_write, char* from_buffer, size_t length){
+    if(is_not_null_fs(fs) == false){
+        mini_log(ERROR, "write_to_block", "Impossibile operare su un fs nullo o non valido.");
+        return -1;
+    }
+
+    if(is_block_valid(fs, block_to_write) == false ){
+        mini_log(ERROR, "write_to_block", "Blocco su cui scrivere inesistente!");
+        return -1;
+    }
+
+    if(is_block_free(fs, block_to_write)){
+        mini_log(ERROR, "write_to_block", "Blocco su cui scrivere non allocato!");
+        return -1;
+    }
+
+    if(length <= 0 || length > BLOCK_SIZE){
+        mini_log(ERROR, "write_to_block", "Il numero di byte da scrivere supera BLOCK_SIZE oppure è inferiore o uguale a 0");
+        return -1;
+    }
+
+    BLOCK* blck = ((BLOCK*)get_fs_block_section(fs)) + block_to_write;
+
+    memcpy(blck, from_buffer, length);
+
+    return 0;
 }

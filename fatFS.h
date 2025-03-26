@@ -48,6 +48,11 @@ typedef struct FAT_FS_HEADER{
 #define MAX_FILENAME_SIZE 26
 #define MAX_FILE_EXTENSION_SIZE 3
 
+typedef struct DIR_ENTRY_POSITION{
+    block_num_t block;  // Il blocco dove si trova quella dir entry (il fs di cui è parte il blocco non viene salvato in questa struttura)
+    unsigned int offset;    // ES. 0 è la prima dir entry effettiva di quel blocco, viene esclusa la dir entry utilizzata per la struttura interna delle cartelle 
+} DIR_ENTRY_POSITION;
+
 typedef struct DIR_ENTRY{
     
     char name[27];         // 26 byte + 1 byte per il terminatore di stringa
@@ -66,22 +71,26 @@ typedef struct DIR_ENTRY{
         } file;
         
         struct{
-            /*
-                L'entry si troverà nella cartella nel blocco block a una certa posizione (es. il primo file in una cartella ha offset 0, il 120esimo ha offset 119)
-                Nel calcolo dell'offset sono escluse le entry necessarie per il mantenimento della gerarchia che si trovano all'inizio di ogni blocco
-            */
-            block_num_t block;
-            unsigned int file_entry_offset; 
+            DIR_ENTRY_POSITION ref; 
+            // Se is_dir = DIR_REF, il valore ref.offset DEVE essere 0.
+            // Se is_dir = DIR_REF_ROOT, ref non ha senso.
         } internal_dir_ref;
     };
-
 } DIR_ENTRY;                   // 40 Bytes?
 
+#define BLOCK_SIZE 512
+
 typedef struct BLOCK{
-    char block_data[512];
+    char block_data[BLOCK_SIZE];
 } BLOCK;
 
-#define BLOCK_SIZE sizeof(BLOCK)
+#define FIRST_BLOCK_DATA_SIZE BLOCK_SIZE - sizeof(block_num_t) - sizeof(unsigned int)
+
+typedef struct FIRST_FILE_BLOCK{
+    DIR_ENTRY_POSITION dir_entry_pos;
+    char first_block_data[FIRST_BLOCK_DATA_SIZE];
+} FIRST_FILE_BLOCK;
+
 
 // NOTA: si tratta di divisione intera! 9 / 4 = 2!
 #define FILE_ENTRIES_PER_DIR_BLOCK (unsigned int)(BLOCK_SIZE / (sizeof(DIR_ENTRY)))
@@ -115,27 +124,39 @@ typedef struct FAT_FS{
 
 typedef struct MOUNTED_FS{
     FAT_FS* fs;
-    block_num_t curr_dir_block;    // curr_dir punta al primo blocco della cartella in cui ci trova al momento (deve essere sempre valido)
+    block_num_t curr_dir_block;    // curr_dir punta al primo blocco della cartella in cui ci si trova al momento (deve essere sempre valido)
+    // Servirebbe di tener conto di tutti i file handler creati
 } MOUNTED_FS;
 
 /* file_name per ora non è utilizzato, viene sempre creato un nuovo file fat.myfat */
 int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
 
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);
-int unmount_fs(MOUNTED_FS* fs);
+int unmount_fs(MOUNTED_FS* m_fs);
+
+typedef struct FILE_HANDLE{
+    MOUNTED_FS* m_fs;
+    block_num_t first_file_block;
+    unsigned int head_pos;
+} FILE_HANDLE;
 
 // Funzioni fondamentali
 
+// Crea e apre il file
+FILE_HANDLE* create_file(MOUNTED_FS* m_fs, char* file_name, char* extension);
+
+int erase_file(FILE_HANDLE* file);
+
+//long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
+//long int read(FILE_HANDLE* file, void* dest_buffer, unsigned int n_bytes);
+
+
 /*
 int _create_dir(FAT_FS* fs, DIR_ENTRY* curr_dir, DIR_ENTRY* new_dir);
-int _create_file(FAT_FS* fs, DIR_ENTRY* dir, DIR_ENTRY* new_file); // il contenuto puntato da new_file verrà copiato nel nuovo file nella cartella directory
-int _erase_file(FAT_FS* fs, DIR_ENTRY* file);
 
 int _erase_dir(FAT_FS* fs, DIR_ENTRY* dir_to_erase);
 
-int _write(DIR_ENTRY* file, unsigned int n_bytes, void* from_buffer);
 // Da vedere come dividere su più file
-int _read(DIR_ENTRY* file, unsigned int n_bytes, void* dest_buffer);
 */
 
 // Richieste da completare affinché il progetto sia completo

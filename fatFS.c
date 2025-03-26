@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <threads.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -303,4 +305,100 @@ int unmount_fs(MOUNTED_FS* m_fs){
     mini_log(INFO, "unmount_fs", "File System unmount completato con successo.");
 
     return 0;
+}
+
+FILE_HANDLE* create_file(MOUNTED_FS* m_fs, char* file_name_buf, char* extension_buf){
+    if(m_fs == NULL || is_not_null_fs(m_fs->fs) == false){
+        mini_log(ERROR, "create_file", "File System non valido");
+        return NULL;
+    }
+
+    if(!can_create_new_file(m_fs->fs, m_fs->curr_dir_block)){
+        mini_log(ERROR, "create_file", "Impossibile creare un nuovo file");
+        return NULL;
+    }
+
+    DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, m_fs->curr_dir_block);
+    if(is_dir_entry_position_null(de_p)){
+        // TODO
+        mini_log(ERROR, "create_file", "ESTENSIONE DELLE CARTELLE NON ANCORA IMPLEMENTATA");
+        return NULL;
+    }
+
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
+
+    strncpy(de->name, file_name_buf, MAX_FILENAME_SIZE);
+    strncpy(de->file_extension, extension_buf, MAX_FILE_EXTENSION_SIZE);
+    de->name[MAX_FILENAME_SIZE] = '\0';
+    de->file_extension[MAX_FILE_EXTENSION_SIZE] = '\0';
+
+    de->is_dir = DATA; // Vuol dire che questa dir_entry rappresenta un file vero e proprio (non una cartella figlia o una struttura interna alla cartella)
+
+
+    // AGGIORNA la directory in cui si trova questo file (deve avere n_elems += 1) TODO
+
+
+    de->file.file_size = 0;
+    de->file.start_block = allocate_block(m_fs->fs);
+
+    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*) block_num_to_block_pointer(m_fs->fs, de->file.start_block);
+    ffb->dir_entry_pos.block = de_p.block;
+    ffb->dir_entry_pos.offset = de_p.offset;
+
+    mini_log(LOG, "create_file", "File creato con successo");
+
+    FILE_HANDLE* file_handle = (FILE_HANDLE*) malloc(sizeof(FILE_HANDLE));
+    if(file_handle == NULL)
+        mini_log(ERROR, "create_file", "Impossibile allocare il file handle (RAM disponibile insufficiente?)");
+
+    file_handle->first_file_block = de->file.start_block;
+    file_handle->head_pos = 0;
+    file_handle->m_fs = m_fs;
+
+    return file_handle;
+}
+
+int erase_file(FILE_HANDLE* file){
+    if(file == NULL || file->m_fs == NULL || is_not_null_fs(file->m_fs->fs) == false){
+        mini_log(ERROR, "erase_file", "File handle e/o file system non valido");
+        return -1;
+    }
+
+    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*) block_num_to_block_pointer(file->m_fs->fs, file->first_file_block);
+
+    // Elimino tutti i blocchi del file (saltando il primo per ora)
+
+    block_num_t next_block_to_free;
+    block_num_t curr_block_to_free = get_next_block(file->m_fs->fs, file->first_file_block);
+    while(curr_block_to_free != LAST_BLOCK){
+        next_block_to_free = get_next_block(file->m_fs->fs, curr_block_to_free);
+
+        free_block(file->m_fs->fs, curr_block_to_free);
+    }
+
+    // Elimino la file entry
+
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(file->m_fs->fs, ffb->dir_entry_pos);
+    
+    memset(de, 0, sizeof(DIR_ENTRY));
+
+    // Aggiorno la cartella che lo conteneva (n_elems -= 1)
+    // TODO
+
+    // Se si libera un intero blocco della cartella, allora quel blocco dovrebbe essere deallocato?
+    // Lo spazio vuoto di questa dir_entry dovrebbe essere riempito dalla dir_entry più in "profondità" per evitare inefficienze nell'utilizzo dei blocchi allocati?
+    // TODO
+
+    // Dealloco il primo blocco del file
+
+    free_block(file->m_fs->fs, file->first_file_block);
+
+    // Dealloco il FILE_HANDLE
+
+    file->m_fs = NULL;
+    file->first_file_block = INVALID_BLOCK;
+    free(file);
+
+    // Quando sarà implementata la lista di FILE_HANDLE aperti, dovrò rimuoverlo anche da quella
+    // TODO
 }
