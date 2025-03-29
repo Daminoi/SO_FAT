@@ -14,4 +14,14 @@ block_num_t allocate_block(const FAT_FS* fs);
 bool free_block(const FAT_FS* fs, const block_num_t block_to_free);
 // Sovrascrive il contenuto del blocco block_to_write, length deve essere minore di BLOCK_SIZE
 int write_to_file_block(const FAT_FS* fs, const block_num_t block_to_write, char* from_buffer, size_t length);
+
+FILE_HANDLE* get_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block);
+FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block);
+void delete_file_handle(FILE_HANDLE* file_handle);
+void delete_all_file_handles(MOUNTED_FS* m_fs);
+
+
+
+
+
 #endif /* FS_FUNCTIONS_H */

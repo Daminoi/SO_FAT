@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "fsFunctions.h"
 #include "fatFS.h"
@@ -153,4 +154,120 @@ int write_to_file_block(const FAT_FS* fs, const block_num_t block_to_write, char
     memcpy(blck, from_buffer, length);
 
     return 0;
+}
+
+void delete_all_file_handles(MOUNTED_FS* m_fs){
+    if(m_fs == NULL){
+        return;
+    }
+
+    FH_STACK_ELEM* curr;
+    while(m_fs->open_file_handles != NULL){
+        curr = m_fs->open_file_handles;
+
+        m_fs->open_file_handles = curr->next;
+
+        free(curr->file_handle);
+        free(curr);
+    }
+}
+
+void delete_file_handle(FILE_HANDLE* file_handle){
+    if(file_handle == NULL){
+        return;
+    }
+    if(file_handle->m_fs == NULL){
+        return;
+    }
+
+    MOUNTED_FS* m_fs = file_handle->m_fs;
+
+    if(m_fs->open_file_handles == NULL){
+        // Non c'è nulla da cancellare perchè la pila di file_handles è vuota
+        return;
+    }
+
+    if(m_fs->open_file_handles->file_handle == file_handle){
+        // Se il file_handle da cancellare è il primo della pila
+        FH_STACK_ELEM* delete_me = m_fs->open_file_handles;
+
+        m_fs->open_file_handles = delete_me->next;
+
+        free(delete_me->file_handle);
+        free(delete_me);
+
+        return;
+    }
+    else{
+        FH_STACK_ELEM* prev = m_fs->open_file_handles;
+        while(prev->next != NULL){
+            FH_STACK_ELEM* curr = prev->next;
+
+            if(curr->file_handle == file_handle){
+                prev->next = curr->next;
+
+                free(curr->file_handle);
+                free(curr);
+
+                return;
+            }
+            
+            prev = curr;
+        }
+    }
+
+    return; // Non è stato trovato il file_handle da cancellare
+}
+
+FILE_HANDLE* get_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return NULL;
+    }
+    if(is_block_valid(m_fs->fs, first_file_block) == false || is_block_free(m_fs->fs, first_file_block)){
+        return NULL;
+    }
+
+    FH_STACK_ELEM* curr = m_fs->open_file_handles;
+
+    while(curr != NULL){
+        if(curr->file_handle->first_file_block == first_file_block){
+            return curr->file_handle;
+        }
+
+        curr = curr->next;
+    }
+
+    // Non trovato
+    return NULL;
+}
+
+FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return NULL;
+    }
+    if(is_block_valid(m_fs->fs, first_file_block) == false || is_block_free(m_fs->fs, first_file_block)){
+        return NULL;
+    }
+
+    FILE_HANDLE* fh = get_file_handle(m_fs, first_file_block);
+    
+    if(fh == NULL){
+        // Non è già presente nella pila, va creato
+        mini_log(LOG, "get_or_create_file_handle", "File handle non trovato nella pila, lo creo per questo file");
+
+        fh = (FILE_HANDLE*) malloc(sizeof(FILE_HANDLE));
+        if(fh == NULL){
+            mini_log(ERROR, "get_or_create_file_handle", "RAM insufficiente per allocare un nuovo file handle");
+            return NULL;
+        }
+
+        fh->first_file_block = first_file_block;
+        fh->head_pos = 0;
+        fh->m_fs = m_fs;
+    }
+    else{
+        mini_log(LOG, "get_or_create_file_handle", "File handle già trovato, non ne verrà allocato uno nuovo per il file");
+    }
+
+    return fh;
 }

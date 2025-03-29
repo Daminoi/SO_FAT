@@ -91,6 +91,18 @@ typedef struct FIRST_FILE_BLOCK{
     char first_block_data[FIRST_BLOCK_DATA_SIZE];
 } FIRST_FILE_BLOCK;
 
+typedef struct MOUNTED_FS MOUNTED_FS; // per risolvere il problema delle inclusioni di struct in altre struct
+
+typedef struct FILE_HANDLE{
+    MOUNTED_FS* m_fs;
+    block_num_t first_file_block;
+    unsigned int head_pos;
+} FILE_HANDLE;
+
+typedef struct FILE_HANDLE_STACK_ELEM{
+    FILE_HANDLE* file_handle;
+    struct FILE_HANDLE_STACK_ELEM* next;
+} FH_STACK_ELEM;
 
 // NOTA: si tratta di divisione intera! 9 / 4 = 2!
 #define FILE_ENTRIES_PER_DIR_BLOCK (unsigned int)(BLOCK_SIZE / (sizeof(DIR_ENTRY)))
@@ -122,11 +134,10 @@ typedef struct FAT_FS{
     byte_offset block_section_offset;   // offset in byte da cui iniziano i blocchi con i dati e le cartelle, viene calcolato quando si carica il fs
 } FAT_FS;
 
-typedef struct MOUNTED_FS{
+struct MOUNTED_FS{
     FAT_FS* fs;
-    block_num_t curr_dir_block;    // curr_dir punta al primo blocco della cartella in cui ci si trova al momento (deve essere sempre valido)
-    // Servirebbe di tener conto di tutti i file handler creati
-} MOUNTED_FS;
+    FH_STACK_ELEM* open_file_handles;
+};
 
 /* file_name per ora non è utilizzato, viene sempre creato un nuovo file fat.myfat */
 int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
@@ -134,43 +145,37 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);
 int unmount_fs(MOUNTED_FS* m_fs);
 
-typedef struct FILE_HANDLE{
-    MOUNTED_FS* m_fs;
-    block_num_t first_file_block;
-    unsigned int head_pos;
-} FILE_HANDLE;
+// Funzioni ausiliarie
+bool is_file_handle_valid(FILE_HANDLE* file);
 
 // Funzioni fondamentali
 
 // Crea e apre il file
-FILE_HANDLE* create_file(MOUNTED_FS* m_fs, char* file_name, char* extension);
+// Directory block dovrebbe essere il numero del primo blocco della directory 
+// TODO
+FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* file_name, char* extension);
 
 int erase_file(FILE_HANDLE* file);
 
+#define FILE_SEEK_SET 0
+#define FILE_SEEK_START 1
+#define FILE_SEEK_END 2
+int file_seek(FILE_HANDLE* file, long int offset, int whence);
+// restituisce la posizione (byte) attuale della testina di lettura nel file
+unsigned int file_tell(FILE_HANDLE* file);
+
+// non è una funzione sicura
+unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block);
+
+// Le ultime da vedere
 //long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
 //long int read(FILE_HANDLE* file, void* dest_buffer, unsigned int n_bytes);
 
 
-/*
-int _create_dir(FAT_FS* fs, DIR_ENTRY* curr_dir, DIR_ENTRY* new_dir);
-
-int _erase_dir(FAT_FS* fs, DIR_ENTRY* dir_to_erase);
-
-// Da vedere come dividere su più file
-*/
-
 // Richieste da completare affinché il progetto sia completo
-
-//int create_file(MOUNTED_FS* fs, DIR_ENTRY* new_file);
-//int erase_file(MOUNTED_FS* fs, char* file_name);
 
 //int create_dir(MOUNTED_FS* fs, DIR_ENTRY* new_dir);
 //int erase_dir(MOUNTED_FS* fs, char* dir_name);
 //int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS
 //int list_dir(MOUNTED_FS* fs);  // NON RIGUARDA IL FS
-
-//int write(MOUNTED_FS* fs, FILE_HANDLE* file_handle, unsigned int n_bytes, void* from_buffer);  // tra le ultime da vedere
-//int read(MOUNTED_FS* fs, FILE_HANDLE* file_handle, unsigned int n_bytes, void* dest_buffer);   // tra le ultime da vedere
-
-//int seek(MOUNTED_FS* fs, FILE_HANDLE* file_handle, long int offset, int whence);   // tra le ultime da vedere
 #endif /* FAT_FS_H */

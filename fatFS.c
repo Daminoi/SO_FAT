@@ -264,7 +264,10 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     */
 
     mounted_fs->fs = fs;
-    mounted_fs->curr_dir_block = 0;
+    mounted_fs->open_file_handles = NULL;
+    
+    // Prepara la lista di file_header a NULL
+    // TODO
 
     fclose(file_with_fs); // chiudo il flusso, il file resterà comunque a disposizione del processo dato che è mmappato
 
@@ -298,7 +301,10 @@ int unmount_fs(MOUNTED_FS* m_fs){
         return -1;
     }
 
-    // Passo 3: dealloca le strutture dati allocate dinamicamente (FAT_FS e MOUNTED_FAT_FS)
+    // Passo 3: dealloca tutte le strutture dati allocate dinamicamente
+
+    delete_all_file_handles(m_fs);
+
     free(m_fs->fs);
     free(m_fs);
 
@@ -307,18 +313,37 @@ int unmount_fs(MOUNTED_FS* m_fs){
     return 0;
 }
 
-FILE_HANDLE* create_file(MOUNTED_FS* m_fs, char* file_name_buf, char* extension_buf){
+bool is_file_handle_valid(FILE_HANDLE* file_handle){
+    if(file_handle == NULL)
+        return false;
+
+    if(file_handle->m_fs == NULL || file_handle->m_fs->fs == NULL || is_block_valid(file_handle->m_fs->fs, file_handle->first_file_block) == false || is_block_free(file_handle->m_fs->fs, file_handle->first_file_block)){
+        return false;
+    }
+
+    if(get_file_handle(file_handle->m_fs, file_handle->first_file_block) != file_handle){
+        mini_log(WARNING, "is_file_handle_valid", "File_handle non presente nella lista di file_handle aperti, probabilmente ne è stato usato uno già deallocato!");
+        return false;
+    }
+
+    return true;
+}
+
+FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* file_name_buf, char* extension_buf){
     if(m_fs == NULL || is_not_null_fs(m_fs->fs) == false){
         mini_log(ERROR, "create_file", "File System non valido");
         return NULL;
     }
 
-    if(!can_create_new_file(m_fs->fs, m_fs->curr_dir_block)){
+    // TODO
+    // assicurarsi che directory block sia il primo della cartella!
+
+    if(!can_create_new_file(m_fs->fs, directory_block)){
         mini_log(ERROR, "create_file", "Impossibile creare un nuovo file");
         return NULL;
     }
 
-    DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, m_fs->curr_dir_block);
+    DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, directory_block);
     if(is_dir_entry_position_null(de_p)){
         // TODO
         mini_log(ERROR, "create_file", "ESTENSIONE DELLE CARTELLE NON ANCORA IMPLEMENTATA");
@@ -335,8 +360,8 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, char* file_name_buf, char* extension_
     de->is_dir = DATA; // Vuol dire che questa dir_entry rappresenta un file vero e proprio (non una cartella figlia o una struttura interna alla cartella)
 
 
-    // AGGIORNA la directory in cui si trova questo file (deve avere n_elems += 1) TODO
-
+    // AGGIORNA la directory in cui si trova questo file (deve avere n_elems += 1)
+    // TODO
 
     de->file.file_size = 0;
     de->file.start_block = allocate_block(m_fs->fs);
@@ -385,7 +410,7 @@ int erase_file(FILE_HANDLE* file){
     // Aggiorno la cartella che lo conteneva (n_elems -= 1)
     // TODO
 
-    // Se si libera un intero blocco della cartella, allora quel blocco dovrebbe essere deallocato?
+    // Se si libera un intero blocco della cartella che contiene questo file, allora quel blocco dovrebbe essere deallocato?
     // Lo spazio vuoto di questa dir_entry dovrebbe essere riempito dalla dir_entry più in "profondità" per evitare inefficienze nell'utilizzo dei blocchi allocati?
     // TODO
 
@@ -401,4 +426,95 @@ int erase_file(FILE_HANDLE* file){
 
     // Quando sarà implementata la lista di FILE_HANDLE aperti, dovrò rimuoverlo anche da quella
     // TODO
+
+    return 0;
+}
+
+// Questa funzione non è sicura, non controlla se first_file_block è un valore sicuro e quindi va usata con attenzione (potrebbe fare accessi in memoria pericolosi)
+unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block){
+    if(fs == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    if(is_block_valid(fs, first_file_block) == false || is_block_free(fs, first_file_block)){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    // operazione pericolosa 1
+    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*)block_num_to_block_pointer(fs, first_file_block);
+    if(ffb == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    // operazione pericolosa 2
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(fs, ffb->dir_entry_pos);
+    if(de == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    return de->file.file_size;
+}
+
+unsigned int file_tell(FILE_HANDLE* file){
+    if(is_file_handle_valid(file) == false){
+        mini_log(ERROR, "file_tell", "file non valido");
+        return 0;
+    }
+
+    return file->head_pos;
+}
+
+int file_seek(FILE_HANDLE* file, long int offset, int whence){
+    if(is_file_handle_valid(file) == false){
+        mini_log(ERROR, "file_seek", "file non valido");
+        return -1;
+    }
+
+    unsigned int file_size = get_file_size(file->m_fs->fs, file->first_file_block);
+    unsigned int simulated_file_pos;
+
+    if(whence == FILE_SEEK_SET){
+        simulated_file_pos = file->head_pos + offset;
+    }
+    else if(whence == FILE_SEEK_START){
+        if(offset < 0){
+            mini_log(ERROR, "file_seek", "FILE_SEEK_START con offset negativo!");
+            return -1;
+        }
+        else{
+            // offset >= 0
+            simulated_file_pos = offset;
+        }
+    }
+    else if(whence == FILE_SEEK_END){
+        if(offset > 0){
+            mini_log(ERROR, "file_seek", "FILE_SEEK_END con offset > 0!");
+            return -1;
+        }
+        else{
+            // offset quindi è <= 0
+            simulated_file_pos = (file_size-1) + offset;
+        }
+    }
+    else{
+        mini_log(ERROR, "file_seek", "Argomento whence non valido");
+        return -1;
+    }
+
+    if(simulated_file_pos < 0){
+        mini_log(ERROR, "file_seek", "Impossibile porre la testa di lettura del file negativa!");
+        return -1;
+    }
+    else if(simulated_file_pos >= file_size){
+        mini_log(ERROR, "file_seek", "Impossibile porre la testa di lettura del file oltre le sue dimensioni!");
+        return -1;
+    }
+    else{
+        file->head_pos = simulated_file_pos;
+        return 0;
+    }
 }
