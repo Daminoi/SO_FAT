@@ -23,6 +23,13 @@ bool is_block_free(const FAT_FS* fs, block_num_t block);
 bool has_next_block(const FAT_FS* fs, block_num_t curr_block);
 block_num_t get_next_block(const FAT_FS* fs, block_num_t curr_block);
 
+/*
+    Restituisce il numero di blocchi che sono parte dello stesso file/cartella e "seguono" il blocco block passato come argomento.
+    ES. Se ho un file che ha 10 blocchi allocati, passo alla funzione il first_file_block, otterrò come risultato 9. 
+    Non accetta blocchi non allocati come argomento
+*/
+block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t block);
+
 BLOCK* block_num_to_block_pointer(const FAT_FS* fs, block_num_t block);
 
 block_num_t get_parent_dir_block(const FAT_FS* fs, block_num_t curr_dir_block);
@@ -37,4 +44,18 @@ DIR_ENTRY_POSITION get_available_dir_entry(const FAT_FS* fs, block_num_t curr_di
 bool is_dir_entry_position_null(DIR_ENTRY_POSITION de_p);
 DIR_ENTRY* dir_entry_pos_to_dir_entry_pointer(const FAT_FS* fs, DIR_ENTRY_POSITION de_p);
 
+block_num_t get_last_block_file_or_dir(const FAT_FS* fs, block_num_t file_or_dir_block);
+
+/*
+    Questa è un'altra funzione non completamente sicura, va usata assicurandosi che dir_block sia il blocco di una cartella
+    Restituisce il primo blocco della cartella a cui appartiene il blocco dir_block.
+*/
+block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_t dir_block);
+
+int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block);
+
+// TODO
+DIR_ENTRY* get_dir_entry_of_file(const FAT_FS* fs, const char* file_name_buf, const char* extension_buf);
+// TODO
+DIR_ENTRY* get_dir_entry_of_dir(const FAT_FS* fs, const char* dir_name_buf);
 #endif /* FS_UTILS_H */

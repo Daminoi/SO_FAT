@@ -66,7 +66,7 @@ typedef struct DIR_ENTRY{
             
             union{
                 unsigned int file_size;     // dimensione del file, se è una cartella allora è sensato n_elems
-                unsigned int n_elems;       // valido solo per le cartelle (non sono contati gli elementi necessari al funzionamento interno)
+                int n_elems;       // valido solo per le cartelle (non sono contati gli elementi necessari al funzionamento interno)
             };
         } file;
         
@@ -103,6 +103,11 @@ typedef struct FILE_HANDLE_STACK_ELEM{
     FILE_HANDLE* file_handle;
     struct FILE_HANDLE_STACK_ELEM* next;
 } FH_STACK_ELEM;
+
+typedef struct DIR_EXPLORER_STACK_ELEM{
+    DIR_ENTRY* elem;
+    struct DIR_EXPLORER_STACK_ELEM* next;
+}DIR_EXPLORER_STACK_ELEM;
 
 // NOTA: si tratta di divisione intera! 9 / 4 = 2!
 #define FILE_ENTRIES_PER_DIR_BLOCK (unsigned int)(BLOCK_SIZE / (sizeof(DIR_ENTRY)))
@@ -154,12 +159,12 @@ bool is_file_handle_valid(FILE_HANDLE* file);
 // Directory block dovrebbe essere il numero del primo blocco della directory 
 // TODO
 FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* file_name, char* extension);
-
 int erase_file(FILE_HANDLE* file);
 
 #define FILE_SEEK_SET 0
 #define FILE_SEEK_START 1
 #define FILE_SEEK_END 2
+// Questa funzione non è sicura, non controlla se first_file_block è un valore sicuro e quindi va usata con attenzione (potrebbe fare accessi in memoria pericolosi)
 int file_seek(FILE_HANDLE* file, long int offset, int whence);
 // restituisce la posizione (byte) attuale della testina di lettura nel file
 unsigned int file_tell(FILE_HANDLE* file);
@@ -167,15 +172,25 @@ unsigned int file_tell(FILE_HANDLE* file);
 // non è una funzione sicura
 unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block);
 
+/*
+    Crea una cartella di nome dir_name nella prima dir_entry disponibile nella cartella di cui curr_dir_block è un blocco (può non essere il primo, la funzione otterrà in automatico il primo blocco)
+*/
+int create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_name_buf);
+/*
+    dir_block è un blocco della cartella da cancellare (può non essere il primo, la funzione otterrà da sola il primo e poi cancellerà l'intera cartella)
+    Nota che la cartella deve essere vuota affinché possa essere cancellata.
+    Non può mai essere cancellata la cartella ROOT.
+*/
+int erase_dir(MOUNTED_FS* m_fs, block_num_t dir_block);
+
+// TODO
+DIR_EXPLORER_STACK_ELEM* list_dir(MOUNTED_FS* fs, block_num_t curr_dir);
+
+// Richieste da completare affinché il progetto sia completo
 // Le ultime da vedere
 //long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
 //long int read(FILE_HANDLE* file, void* dest_buffer, unsigned int n_bytes);
 
 
-// Richieste da completare affinché il progetto sia completo
-
-//int create_dir(MOUNTED_FS* fs, DIR_ENTRY* new_dir);
-//int erase_dir(MOUNTED_FS* fs, char* dir_name);
 //int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS
-//int list_dir(MOUNTED_FS* fs);  // NON RIGUARDA IL FS
 #endif /* FAT_FS_H */

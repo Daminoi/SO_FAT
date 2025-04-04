@@ -334,18 +334,25 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
         mini_log(ERROR, "create_file", "File System non valido");
         return NULL;
     }
+    
+    block_num_t first_dir_block = get_first_dir_block_from_curr_dir_block(m_fs->fs, directory_block);
+    if(first_dir_block == INVALID_BLOCK){
+        mini_log(ERROR, "create_file", "Impossibile ottenere il primo blocco della cartella");
+        return NULL;
+    }
 
+    // Verifica che non vi sia già un file con lo stesso nome ed estensione in questa cartella
     // TODO
-    // assicurarsi che directory block sia il primo della cartella!
 
-    if(!can_create_new_file(m_fs->fs, directory_block)){
-        mini_log(ERROR, "create_file", "Impossibile creare un nuovo file");
+    if(can_create_new_file(m_fs->fs, directory_block) == false){
+        mini_log(WARNING, "create_file", "Impossibile creare un nuovo file");
         return NULL;
     }
 
     DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, directory_block);
     if(is_dir_entry_position_null(de_p)){
         // TODO
+        // Implementa l'estensione della cartella
         mini_log(ERROR, "create_file", "ESTENSIONE DELLE CARTELLE NON ANCORA IMPLEMENTATA");
         return NULL;
     }
@@ -361,7 +368,9 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
 
 
     // AGGIORNA la directory in cui si trova questo file (deve avere n_elems += 1)
-    // TODO
+    if(update_dir_elem_added(m_fs->fs, directory_block)){
+        mini_log(ERROR, "create_file", "Fallito aggiornamento della cartella genitore del file creato");
+    }
 
     de->file.file_size = 0;
     de->file.start_block = allocate_block(m_fs->fs);
@@ -392,7 +401,6 @@ int erase_file(FILE_HANDLE* file){
     FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*) block_num_to_block_pointer(file->m_fs->fs, file->first_file_block);
 
     // Elimino tutti i blocchi del file (saltando il primo per ora)
-
     block_num_t next_block_to_free;
     block_num_t curr_block_to_free = get_next_block(file->m_fs->fs, file->first_file_block);
     while(curr_block_to_free != LAST_BLOCK){
@@ -402,17 +410,15 @@ int erase_file(FILE_HANDLE* file){
     }
 
     // Elimino la file entry
-
     DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(file->m_fs->fs, ffb->dir_entry_pos);
     
     memset(de, 0, sizeof(DIR_ENTRY));
+    de->is_dir = EMPTY;
 
     // Aggiorno la cartella che lo conteneva (n_elems -= 1)
-    // TODO
-
-    // Se si libera un intero blocco della cartella che contiene questo file, allora quel blocco dovrebbe essere deallocato?
-    // Lo spazio vuoto di questa dir_entry dovrebbe essere riempito dalla dir_entry più in "profondità" per evitare inefficienze nell'utilizzo dei blocchi allocati?
-    // TODO
+    if(update_dir_elem_removed(file->m_fs->fs, ffb->dir_entry_pos.block)){
+        mini_log(ERROR, "erase_file", "Fallito aggiornamento della cartella genitore del file eliminato");
+    }
 
     // Dealloco il primo blocco del file
 
@@ -430,7 +436,6 @@ int erase_file(FILE_HANDLE* file){
     return 0;
 }
 
-// Questa funzione non è sicura, non controlla se first_file_block è un valore sicuro e quindi va usata con attenzione (potrebbe fare accessi in memoria pericolosi)
 unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block){
     if(fs == NULL){
         mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
@@ -517,4 +522,119 @@ int file_seek(FILE_HANDLE* file, long int offset, int whence){
         file->head_pos = simulated_file_pos;
         return 0;
     }
+}
+
+block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_name_buf){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return INVALID_BLOCK;
+    }
+
+    block_num_t first_dir_block = get_first_dir_block_from_curr_dir_block(m_fs->fs, curr_dir_block);
+    if(first_dir_block == INVALID_BLOCK){
+        mini_log(ERROR, "create_dir", "Impossibile ottenere il primo blocco della cartella");
+        return INVALID_BLOCK;
+    }
+
+    if(dir_name_buf == NULL){
+        mini_log(ERROR, "create_dir", "Nome della cartella non specificato (dir_name == NULL)");
+        return INVALID_BLOCK;
+    }
+
+    // Verifica che ci sia spazio per creare una cartella nuova
+    if(can_create_new_dir(m_fs->fs, first_dir_block) == false){
+        mini_log(WARNING, "create_dir", "Impossibile procedere con la creazione di una nuova cartella, requisiti mancanti");
+        return INVALID_BLOCK;
+    }
+
+    // Verifica che non esista già una cartella con lo stesso nome in questa cartella
+    // TODO
+
+    // Ottieni la dir_entry in cui salvare questa nuova cartella
+    DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, first_dir_block);
+    if(is_dir_entry_position_null(de_p)){
+        // Devo estendere la cartella attuale per ottenere una dir_entry libera
+        // TODO
+        mini_log(ERROR, "create_dir", "Estensione della cartella non ancora implementata");
+        return INVALID_BLOCK;
+    }
+
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
+    
+    strncpy(de->name, dir_name_buf, MAX_FILENAME_SIZE);
+    de->name[MAX_FILENAME_SIZE] = '\0';
+    
+    de->is_dir = DIR;
+    
+    de->file.n_elems = 0;
+    de->file.start_block = allocate_block(m_fs->fs);
+    
+    BLOCK* new_dir_block = block_num_to_block_pointer(m_fs->fs, de->file.start_block);
+    DIR_ENTRY* first_dir_entry = (DIR_ENTRY*) new_dir_block;
+    
+    first_dir_entry->is_dir = DIR_REF_TOP;
+    first_dir_entry->internal_dir_ref.ref.block = de_p.block;
+    first_dir_entry->internal_dir_ref.ref.offset = de_p.offset;
+    
+    // DEVO AGGIORNARE la directory in cui si trova questa nuova, dato che ora contiene un elemento in più.
+    if(update_dir_elem_added(m_fs->fs, curr_dir_block)){
+        mini_log(ERROR, "erase_dir", "Fallito aggiornamento della cartella genitore di quella creata");
+    }
+    
+    mini_log(LOG, "create_dir", "Cartella creata con successo");
+    
+    return de->file.start_block;
+}
+
+int erase_dir(MOUNTED_FS* m_fs, block_num_t dir_block){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return -1;
+    }
+
+    if(is_block_valid(m_fs->fs, dir_block) == false || is_block_free(m_fs->fs, dir_block)){
+        return -1;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(m_fs->fs, dir_block);
+    if(fdb == INVALID_BLOCK){
+        return -1;
+    }
+
+    if(fdb == ROOT_DIR_STARTING_BLOCK){
+        return -1;
+    }
+
+    DIR_ENTRY* de_top = (DIR_ENTRY*) block_num_to_block_pointer(m_fs->fs, fdb);
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_top->internal_dir_ref.ref);
+    
+    // Controlla che la cartella sia vuota
+    if(get_dir_n_elems(m_fs->fs, fdb) > 0){
+        return -1;
+    }
+
+    // Dealloca tutti i blocchi successivi al primo (indicato dalla variabile fdb)
+    block_num_t to_be_removed = get_next_block(m_fs->fs, fdb);
+    block_num_t nxt;
+
+    while(to_be_removed != LAST_BLOCK){
+        nxt = get_next_block(m_fs->fs, to_be_removed);
+
+        free_block(m_fs->fs, to_be_removed);
+    }
+
+    // Libera la file entry presente nella cartella che contiene questa cartella
+    memset(de, 0, sizeof(DIR_ENTRY));
+    de->is_dir = EMPTY;
+    
+    // (quindi aggiorna il numero di elementi contenuti nella cartella che contiene quella attuale)
+    block_num_t parent_dir = get_parent_dir_block(m_fs->fs, dir_block);
+    if(update_dir_elem_removed(m_fs->fs, parent_dir)){
+        mini_log(ERROR, "erase_dir", "Fallito aggiornamento della cartella genitore di quella eliminata");
+    }
+
+    // Libera il blocco indicato da fdb
+    free_block(m_fs->fs, fdb);
+
+    // Termina con successo
+    mini_log(LOG, "erase_dir", "Cartella eliminata con successo");
+    return 0;
 }

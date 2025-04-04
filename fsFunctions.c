@@ -271,3 +271,147 @@ FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_
 
     return fh;
 }
+
+int extend_file(FILE_HANDLE* file, block_num_t n_blocks_to_allocate){
+    if(is_file_handle_valid(file) == false){
+        return -1;
+    }
+
+    if(n_blocks_to_allocate <= 0){
+        return -1;
+    }
+
+    if(n_blocks_to_allocate >= get_n_free_blocks(file->m_fs->fs)){
+        return -1;
+    }
+
+    // Raggiungo l'ultimo blocco già allocato del file
+
+    block_num_t blk = get_last_block_file_or_dir(file->m_fs->fs, file->head_pos);
+    if(blk == INVALID_BLOCK){
+        mini_log(ERROR, "extend_file", "Impossibile raggiungere l'ultimo blocco del file");
+        return -1;
+    }
+
+    // Alloco n_blocks_to_allocate, uno dopo l'altro, appendendoli all'ultimo blocco precedentemente allocato
+    // Non dovrebbero verificarsi errori di allocazione in questa fase viste le verifiche precedenti sullo spazio libero disponibile.
+    
+    FAT_ENTRY* fat = get_fs_fat(file->m_fs->fs);
+
+    for(int i=0; i < n_blocks_to_allocate; ++i){
+        block_num_t new_block = allocate_block(file->m_fs->fs);
+
+        fat[blk].next_block = new_block;
+        blk = new_block;
+    }
+
+    mini_log(LOG, "extend_file", "File esteso con successo, blocchi(blocco) aggiunti in coda");
+    return 0;
+}
+
+int extend_dir(MOUNTED_FS* m_fs, block_num_t dir_block, block_num_t n_blocks_to_allocate){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return -1;
+    }
+
+    if(is_block_valid(m_fs->fs, dir_block) == false || is_block_free(m_fs->fs, dir_block)){
+        return -1;
+    }
+    
+    if(n_blocks_to_allocate <= 0){
+        return -1;
+    }
+
+    if(n_blocks_to_allocate >= get_n_free_blocks(m_fs->fs)){
+        return -1;
+    }
+
+    // Ottengo il numero del primo blocco della cartella
+    block_num_t first_dir_block = get_first_dir_block_from_curr_dir_block(m_fs->fs, dir_block);
+    if(first_dir_block == INVALID_BLOCK){
+        mini_log(ERROR, "extend_dir", "Impossibile ottenere il primmo blocco della cartella attuale");
+        return -1;
+    }
+
+    // Raggiungo l'ultimo blocco della cartella
+    block_num_t blk = get_last_block_file_or_dir(m_fs->fs, dir_block);
+    if(blk == INVALID_BLOCK){
+        mini_log(ERROR, "extend_dir", "Impossibile raggiungere l'ultimo blocco della directory");
+        return -1;
+    }
+
+    // Alloco n_blocks_to_allocate e li appendo uno alla volta, scrivo i dati necessari nella file_entry 0 di ogni blocco.
+    FAT_ENTRY* fat = get_fs_fat(m_fs->fs);
+
+    for(int i=0; i < n_blocks_to_allocate; ++i){
+        block_num_t new_block = allocate_block(m_fs->fs);
+
+        fat[blk].next_block = new_block;
+        blk = new_block;
+
+        // La conversione di puntatore può essere fatta così perchè bisogna accedere proprio alla dir_entry con indice 0 del blocco
+        DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(m_fs->fs, blk);
+        if(de != NULL){
+            de->is_dir = DIR_REF;
+            de->internal_dir_ref.ref.block = first_dir_block;
+        }
+        else{
+            mini_log(ERROR, "extend_dir", "Non è stato possibile ottenere la dir_entry 0 del nuovo blocco allocato, il fs è corrotto");
+        }
+    }
+
+    mini_log(LOG, "extend_dir", "Cartella estesa con successo, blocchi(blocco) aggiunti(o) in coda");
+    return 0;
+}
+
+int update_dir_elem_added(const FAT_FS* fs, block_num_t dir_block){
+    if(fs == NULL){
+        return -1;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
+    if(fdb == INVALID_BLOCK){
+        return -1;
+    }
+
+    DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
+    if(de == NULL){
+        return -1;
+    }
+
+    if(fdb == ROOT_DIR_STARTING_BLOCK){
+        ++de->file.n_elems;
+    }
+    else{
+        DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
+        ++de_to_update->file.n_elems;
+    }
+
+    return 0;
+}
+
+int update_dir_elem_removed(const FAT_FS* fs, block_num_t dir_block){
+    if(fs == NULL){
+        return -1;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
+    if(fdb == INVALID_BLOCK){
+        return -1;
+    }
+
+    DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
+    if(de == NULL){
+        return -1;
+    }
+
+    if(fdb == ROOT_DIR_STARTING_BLOCK){
+        --de->file.n_elems;
+    }
+    else{
+        DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
+        --de_to_update->file.n_elems;
+    }
+
+    return 0;
+}

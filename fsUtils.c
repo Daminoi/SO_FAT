@@ -111,7 +111,7 @@ block_num_t get_parent_dir_block(const FAT_FS* fs, block_num_t curr_dir_block){
         return INVALID_BLOCK;
     }
 
-    if(!is_block_valid(fs, curr_dir_block) || is_block_free(fs, curr_dir_block)){
+    if(is_block_valid(fs, curr_dir_block) == false || is_block_free(fs, curr_dir_block)){
         mini_log(ERROR, "get_parent_dir_block", "Il numero di blocco passato come argomento non è valido");
         return INVALID_BLOCK;
     }
@@ -274,4 +274,129 @@ BLOCK* block_num_to_block_pointer(const FAT_FS* fs, block_num_t block_num){
     }
     
     return (get_fs_block_section(fs) + block_num);
+}
+
+block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t block){
+    if(fs == NULL){
+        return INVALID_BLOCK;
+    }
+
+    if(is_block_valid(fs, block) == false || is_block_free(fs, block)){
+        mini_log(ERROR, "get_numer_following_block_alocated_blocks", "Blocco non valido!");
+        return INVALID_BLOCK;
+    }
+
+    const block_num_t max_n_following_blocks = get_n_blocks(fs) - 1; // Per evitare LOOP infiniti, anche se non dovrebbero verificarsi se il fs non fosse corrotto o se non vi fossero errori di programmazione
+    block_num_t n_following_blocks = 0;
+
+    block_num_t blk = block;
+
+    do{
+        blk = get_next_block(fs, block);
+
+        if(blk == INVALID_BLOCK){
+            mini_log(ERROR, "get_number_following_allocated_blocks", "Errore interno al fs!");
+            return INVALID_BLOCK;
+        }
+
+        if(blk != LAST_BLOCK){
+            ++n_following_blocks;
+
+            if(n_following_blocks > max_n_following_blocks){
+                mini_log(ERROR, "get_number_following_allocated_blocks", "Probabile LOOP infinito nel conteggio dei blocchi, fs corrotto o errori interni al codice!");
+                return INVALID_BLOCK;
+            }
+        }
+
+    }while(blk != LAST_BLOCK);
+
+    return n_following_blocks;
+}
+
+block_num_t get_last_block_file_or_dir(const FAT_FS* fs, block_num_t file_or_dir_block){
+    if(fs == NULL){
+        return INVALID_BLOCK;
+    }
+
+    if(is_block_valid(fs, file_or_dir_block) == false || is_block_free(fs, file_or_dir_block)){
+        return INVALID_BLOCK;
+    }
+
+    block_num_t blk = file_or_dir_block;
+    block_num_t nxt;
+
+    block_num_t remaining_iterations_before_error = get_n_blocks(fs) - 1;
+
+    do{
+        nxt = get_next_block(fs, blk);
+
+        if(nxt == INVALID_BLOCK){
+            return INVALID_BLOCK;
+        }
+
+        --remaining_iterations_before_error;
+        if(remaining_iterations_before_error < 0){
+            mini_log(ERROR, "get_last_block_file_or_dir", "Probabile LOOP infinito, impossibile raggiungere la fine del file/directory");
+            return INVALID_BLOCK;
+        }
+
+        if(nxt != LAST_BLOCK)
+            blk = nxt;
+
+    }while(nxt != LAST_BLOCK);
+
+    return blk;
+}
+
+block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_t dir_block){
+    if(fs == NULL){
+        return INVALID_BLOCK;
+    }
+
+    if(is_block_valid(fs, dir_block) == false || is_block_free(fs, dir_block)){
+        return INVALID_BLOCK;
+    }
+
+    DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, dir_block);
+    if(de == NULL){
+        return INVALID_BLOCK;
+    }
+
+    if(de->is_dir == DIR_REF_TOP || de->is_dir == DIR_REF_ROOT){
+        // Siamo già al primo blocco della cartella
+        return dir_block;
+    }
+
+    if(de->is_dir == DIR_REF){
+        return de->internal_dir_ref.ref.block;
+    }
+    else{
+        mini_log(ERROR, "get_first_dir_block_from_curr_dir_block", "Impossibile procedere, probabilmente è stato passato un blocco che non appartiene a una cartella o il fs è corrotto");
+        return INVALID_BLOCK;
+    }
+}
+
+
+int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block){
+    if(fs == NULL){
+        return -1;
+    }
+    
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
+    if(fdb == INVALID_BLOCK){
+        return -1;
+    }
+
+    DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
+    if(de == NULL){
+        return -1;
+    }
+
+    if(fdb == ROOT_DIR_STARTING_BLOCK){
+        return de->file.n_elems;
+    }
+    else{
+        DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
+        return de_to_update->file.n_elems;
+    }
 }
