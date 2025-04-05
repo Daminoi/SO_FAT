@@ -109,6 +109,12 @@ typedef struct DIR_EXPLORER_STACK_ELEM{
     struct DIR_EXPLORER_STACK_ELEM* next;
 }DIR_EXPLORER_STACK_ELEM;
 
+// Se si verificasse un errore nell'esplorazione di una cartella, n_elems non rifletterà il numero di elementi nella lista puntata da elems.
+typedef struct DIR_EXPLORER{
+    int n_elems;
+    DIR_EXPLORER_STACK_ELEM* elems;
+}DIR_EXPLORER;
+
 // NOTA: si tratta di divisione intera! 9 / 4 = 2!
 #define FILE_ENTRIES_PER_DIR_BLOCK (unsigned int)(BLOCK_SIZE / (sizeof(DIR_ENTRY)))
 
@@ -164,9 +170,9 @@ int erase_file(FILE_HANDLE* file);
 #define FILE_SEEK_SET 0
 #define FILE_SEEK_START 1
 #define FILE_SEEK_END 2
-// Questa funzione non è sicura, non controlla se first_file_block è un valore sicuro e quindi va usata con attenzione (potrebbe fare accessi in memoria pericolosi)
+
 int file_seek(FILE_HANDLE* file, long int offset, int whence);
-// restituisce la posizione (byte) attuale della testina di lettura nel file
+// Restituisce la posizione (byte) attuale della testina di lettura nel file
 unsigned int file_tell(FILE_HANDLE* file);
 
 // non è una funzione sicura
@@ -183,14 +189,27 @@ int create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_name_buf)
 */
 int erase_dir(MOUNTED_FS* m_fs, block_num_t dir_block);
 
+
+DIR_EXPLORER* list_dir(MOUNTED_FS* m_fs, block_num_t curr_dir);
+void delete_list_dir(DIR_EXPLORER* exp);
+
+// ffb DEVE essere il numero del primo blocco del file o la funzione farà accessi in memoria errati
 // TODO
-DIR_EXPLORER_STACK_ELEM* list_dir(MOUNTED_FS* fs, block_num_t curr_dir);
+void get_file_name_extension(block_num_t ffb, char* name_buf, char* extension_buf);
+// TODO
+void get_directory_name(block_num_t dir_block, char* name_buf);
+
+// TODO
+DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* file_name_buf, const char* extension_buf);
+// TODO
+DIR_ENTRY* get_file_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* dir_name_buf);
 
 // Richieste da completare affinché il progetto sia completo
+//int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS
+
 // Le ultime da vedere
 //long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
 //long int read(FILE_HANDLE* file, void* dest_buffer, unsigned int n_bytes);
 
 
-//int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS
 #endif /* FAT_FS_H */

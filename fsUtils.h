@@ -53,9 +53,4 @@ block_num_t get_last_block_file_or_dir(const FAT_FS* fs, block_num_t file_or_dir
 block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_t dir_block);
 
 int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block);
-
-// TODO
-DIR_ENTRY* get_dir_entry_of_file(const FAT_FS* fs, const char* file_name_buf, const char* extension_buf);
-// TODO
-DIR_ENTRY* get_dir_entry_of_dir(const FAT_FS* fs, const char* dir_name_buf);
 #endif /* FS_UTILS_H */

@@ -638,3 +638,120 @@ int erase_dir(MOUNTED_FS* m_fs, block_num_t dir_block){
     mini_log(LOG, "erase_dir", "Cartella eliminata con successo");
     return 0;
 }
+
+DIR_EXPLORER* list_dir(MOUNTED_FS* m_fs, block_num_t curr_dir){
+    if(m_fs == NULL || m_fs->fs == NULL){
+        return NULL;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(m_fs->fs, curr_dir);
+    if(fdb == INVALID_BLOCK){
+        return NULL;
+    }
+
+    int n_elems = get_dir_n_elems(m_fs->fs, fdb);
+    if(n_elems < 0){
+        mini_log(ERROR, "list_dir", "Cartella da esplorare corrotta o non esistente (numero di elementi contenuti negativo o errore interno)");
+        return NULL;
+    }
+    
+    DIR_EXPLORER* exp = malloc(sizeof(DIR_EXPLORER));
+    if(exp == NULL){
+        mini_log(ERROR, "list_dir", "Memoria insufficiente per allocare la struttura dati DIR_EXPLORER");
+        return NULL;
+    }
+    
+    exp->elems = NULL;
+
+    if(n_elems == 0){
+        exp->n_elems = 0;
+        return exp;
+    }
+
+    // Da ora è implementato il caso in cui la cartella contenga almeno un elemento
+    exp->n_elems = n_elems;
+
+    bool error = false;
+    
+    DIR_ENTRY* de;
+    DIR_ENTRY_POSITION de_p;
+    de_p.block = fdb;
+    de_p.offset = 1;
+
+    DIR_EXPLORER_STACK_ELEM** last = &(exp->elems);
+
+    while(error == false && n_elems > 0){
+        de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
+        
+        if(de == NULL){
+            error = true;
+            mini_log(ERROR, "list_dir", "Impossibile ottenere un elemento della cartella");
+            break;
+        }
+        
+        if(de->is_dir == DIR || de->is_dir == DATA){
+            DIR_EXPLORER_STACK_ELEM* new_elem = malloc(sizeof(DIR_EXPLORER_STACK_ELEM));
+            if(new_elem == NULL){
+                error = true;
+                mini_log(ERROR, "list_dir", "Memoria insufficiente per allocare la struttura dati DIR_EXPLORER_STACK_ELEM");
+                break;
+            }
+
+            new_elem->elem = de;
+            new_elem->next = NULL;
+
+            *last = new_elem;
+            last = &(new_elem->next);
+
+            --n_elems;
+        }
+        else if(de->is_dir != EMPTY){
+            mini_log(ERROR, "list_dir", "Incontrato un elemento non previsto");
+            error = true;
+            break;
+        }
+
+        if(n_elems > 0){
+            // Visto che so di dover ottenere ancora un elemento di questa cartella, passo a controllare la dir_entry successiva
+            ++de_p.offset;
+            if(de_p.offset >= FILE_ENTRIES_PER_DIR_BLOCK){
+                // Allora devo passare al blocco successivo della cartella
+                de_p.block = get_next_block(m_fs->fs, de_p.block);
+                if(de_p.block == LAST_BLOCK){
+                    // Dovrebbe esserci ancora un elemento da trovare ma i blocchi da controllare sono finiti, quindi errore (fs corrotto?)
+                    error = true;
+                    mini_log(ERROR, "list_dir", "Raggiunta la fine della cartella, ma non sono stati trovati tutti gli elementi attesi");
+                    break;
+                }
+
+                de_p.offset = 1;
+            }
+        }
+    }
+
+    if(error == false){
+        mini_log(LOG, "list_dir", "Contenuto della cartella ottenuto con successo");
+    }
+
+    return exp;
+}
+
+void delete_dir_list(DIR_EXPLORER* exp){
+    if(exp == NULL){
+        return;
+    }
+    
+    DIR_EXPLORER_STACK_ELEM* curr = exp->elems;
+    DIR_EXPLORER_STACK_ELEM* nxt = exp->elems;
+    while(curr != NULL){
+        nxt = curr->next;
+        
+        free(curr);
+
+        curr = nxt;
+    }
+
+    free(exp);
+
+    mini_log(LOG, "delete_list_dir", "Lista di elementi della cartella eliminata");
+}
