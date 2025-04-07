@@ -194,15 +194,11 @@ DIR_EXPLORER* list_dir(MOUNTED_FS* m_fs, block_num_t curr_dir);
 void delete_list_dir(DIR_EXPLORER* exp);
 
 // ffb DEVE essere il numero del primo blocco del file o la funzione farà accessi in memoria errati
-// TODO
-void get_file_name_extension(block_num_t ffb, char* name_buf, char* extension_buf);
-// TODO
-void get_directory_name(block_num_t dir_block, char* name_buf);
+int get_file_name_extension(const FAT_FS* fs, block_num_t ffb, char* name_buf, char* extension_buf);
+int get_directory_name(const FAT_FS* fs, block_num_t dir_block, char* name_buf);
 
-// TODO
-DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* file_name_buf, const char* extension_buf);
-// TODO
-DIR_ENTRY* get_file_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* dir_name_buf);
+DIR_ENTRY* get_file_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* file_name_buf, const char* extension_buf);
+DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* dir_name_buf);
 
 // Richieste da completare affinché il progetto sia completo
 //int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS

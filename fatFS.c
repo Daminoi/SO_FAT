@@ -76,13 +76,6 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
         inizializza la FAT e la cartella di root (e organizza i blocchi liberi)
     */
 
-    /*
-    BLOCK* blocks = (BLOCK*) (fat + n_blocks);                  // DA RICONTROLLARE
-
-    new_fs.header = header;
-    new_fs.fat = fat;
-    new_fs.block_section = blocks;
-    */
     FAT_FS new_fs;
     
     new_fs.start_location = (char*) mmapped_fs;
@@ -259,15 +252,12 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     fs->block_section_offset = sizeof(FAT_ENTRY) * header->n_blocks;
 
     /*
-        Passo 6: Poni curr_dir_block a 0.
-        Restituisci il puntatore alla struttura.
+        Passo 6: Popola la struttura MOUNTED_FS e poni a NULL la lista di file_handle aperti
     */
 
     mounted_fs->fs = fs;
     mounted_fs->open_file_handles = NULL;
     
-    // Prepara la lista di file_header a NULL
-    // TODO
 
     fclose(file_with_fs); // chiudo il flusso, il file resterà comunque a disposizione del processo dato che è mmappato
 
@@ -342,7 +332,11 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
     }
 
     // Verifica che non vi sia già un file con lo stesso nome ed estensione in questa cartella
-    // TODO
+    DIR_ENTRY* already_exists = get_file_by_name(m_fs->fs, first_dir_block, file_name_buf, extension_buf);
+    if(already_exists != NULL){
+        mini_log(WARNING, "create_file", "Esiste già un file con lo stesso nome ed estensione");
+        return NULL;
+    }
 
     if(can_create_new_file(m_fs->fs, directory_block) == false){
         mini_log(WARNING, "create_file", "Impossibile creare un nuovo file");
@@ -367,7 +361,7 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
     de->is_dir = DATA; // Vuol dire che questa dir_entry rappresenta un file vero e proprio (non una cartella figlia o una struttura interna alla cartella)
 
 
-    // AGGIORNA la directory in cui si trova questo file (deve avere n_elems += 1)
+    // aggiorno la directory in cui si trova questo file (deve avere n_elems += 1)
     if(update_dir_elem_added(m_fs->fs, directory_block)){
         mini_log(ERROR, "create_file", "Fallito aggiornamento della cartella genitore del file creato");
     }
@@ -428,10 +422,8 @@ int erase_file(FILE_HANDLE* file){
 
     file->m_fs = NULL;
     file->first_file_block = INVALID_BLOCK;
-    free(file);
 
-    // Quando sarà implementata la lista di FILE_HANDLE aperti, dovrò rimuoverlo anche da quella
-    // TODO
+    delete_file_handle(file);
 
     return 0;
 }
@@ -547,7 +539,11 @@ block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_n
     }
 
     // Verifica che non esista già una cartella con lo stesso nome in questa cartella
-    // TODO
+    DIR_ENTRY* already_exists = get_dir_by_name(m_fs->fs, first_dir_block, dir_name_buf);
+    if(already_exists != NULL){
+        mini_log(WARNING, "create_dir", "Esiste già una cartella con lo stesso nome");
+        return NULL;
+    }
 
     // Ottieni la dir_entry in cui salvare questa nuova cartella
     DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, first_dir_block);
@@ -754,4 +750,187 @@ void delete_dir_list(DIR_EXPLORER* exp){
     free(exp);
 
     mini_log(LOG, "delete_list_dir", "Lista di elementi della cartella eliminata");
+}
+
+DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* dir_name_buf){
+    
+    if(fs == NULL){
+        mini_log(ERROR, "get_dir_by_name", "fs nullo");
+        return NULL;
+    }
+    
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, curr_dir);
+    if(fdb == INVALID_BLOCK){
+        mini_log(ERROR, "get_dir_by_name", "Imposibile ottenere il primo blocco della cartella");
+        return NULL;
+    }
+
+    int n_elems = get_dir_n_elems(fs, fdb);
+    if(n_elems < 0){
+        mini_log(ERROR, "get_dir_by_name", "Cartella corrotta");
+    }
+    
+    bool error = false;
+    
+    DIR_ENTRY* de;
+    DIR_ENTRY_POSITION de_p;
+    de_p.block = fdb;
+    de_p.offset = 1;
+    
+    while(error == false && n_elems > 0){
+        de = dir_entry_pos_to_dir_entry_pointer(fs, de_p);
+        
+        if(de == NULL){
+            error = true;
+            break;
+        }
+        
+        if(de->is_dir == DIR && strncmp(de->name, dir_name_buf, MAX_FILENAME_SIZE) == 0){
+            return de;
+        }
+        
+        if(de->is_dir == DATA || de->is_dir == DIR)
+            --n_elems;
+
+        if(n_elems > 0){
+            // Ci sono ancora elementi da controllare
+            ++de_p.offset;
+            if(de_p.offset >= FILE_ENTRIES_PER_DIR_BLOCK){
+                // Allora devo passare al blocco successivo della cartella
+                de_p.block = get_next_block(fs, de_p.block);
+                if(de_p.block == LAST_BLOCK){
+                    // Dovrebbe esserci ancora un elemento da trovare ma i blocchi da controllare sono finiti
+                    error = true;
+                    break;
+                }
+
+                de_p.offset = 1;
+            }
+        }
+    }
+
+    if(error == true){
+        mini_log(ERROR, "get_dir_by_name", "Errore nella ricerca");
+    }
+
+    return NULL;
+}
+
+
+DIR_ENTRY* get_file_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* file_name_buf, const char* extension_buf){
+    if(fs == NULL){
+        mini_log(ERROR, "get_file_by_name", "fs nullo");
+        return NULL;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, curr_dir);
+    if(fdb == INVALID_BLOCK){
+        mini_log(ERROR, "get_file_by_name", "Imposibile ottenere il primo blocco della cartella");
+        return NULL;
+    }
+
+    int n_elems = get_dir_n_elems(fs, fdb);
+    if(n_elems < 0){
+        mini_log(ERROR, "get_file_by_name", "Cartella corrotta");
+    }
+
+    bool error = false;
+
+    DIR_ENTRY* de;
+    DIR_ENTRY_POSITION de_p;
+    de_p.block = fdb;
+    de_p.offset = 1;
+
+    while(error == false && n_elems > 0){
+        de = dir_entry_pos_to_dir_entry_pointer(fs, de_p);
+        
+        if(de == NULL){
+            error = true;
+            break;
+        }
+        
+        if(de->is_dir == DATA && strncmp(de->name, file_name_buf, MAX_FILENAME_SIZE) == 0 && strncmp(de->file_extension, extension_buf, MAX_FILE_EXTENSION_SIZE) == 0){
+            return de;
+        }
+        
+        if(de->is_dir == DATA || de->is_dir == DIR)
+            --n_elems;
+
+        if(n_elems > 0){
+            // Ci sono ancora elementi da controllare
+            ++de_p.offset;
+            if(de_p.offset >= FILE_ENTRIES_PER_DIR_BLOCK){
+                // Allora devo passare al blocco successivo della cartella
+                de_p.block = get_next_block(fs, de_p.block);
+                if(de_p.block == LAST_BLOCK){
+                    // Dovrebbe esserci ancora un elemento da trovare ma i blocchi da controllare sono finiti
+                    error = true;
+                    break;
+                }
+
+                de_p.offset = 1;
+            }
+        }
+    }
+
+    if(error == true){
+        mini_log(ERROR, "get_file_by_name", "Errore nella ricerca");
+    }
+
+    return NULL;
+}
+
+int get_file_name_extension(const FAT_FS* fs, block_num_t ffb, char* name_buf, char* extension_buf){
+    if(fs == NULL){
+        return -1;
+    }
+
+    if(is_block_valid(fs, ffb) == false || is_block_free(fs, ffb)){
+        return -1;
+    }
+
+    FIRST_FILE_BLOCK* blk = (FIRST_FILE_BLOCK*) block_num_to_block_pointer(fs, ffb);
+    DIR_ENTRY_POSITION de_p = blk->dir_entry_pos;
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(fs, de_p);
+
+    if(de->is_dir != DATA || de->file.start_block != ffb){
+        return -1;
+    }
+
+    strncpy(name_buf, de->name, MAX_FILENAME_SIZE);
+    strncpy(extension_buf, de->file_extension, MAX_FILE_EXTENSION_SIZE);
+
+    return 0;
+}
+
+int get_directory_name(const FAT_FS* fs, block_num_t dir_block, char* name_buf){
+    if(fs == NULL){
+        return -1;
+    }
+
+    if(is_block_valid(fs, dir_block) == false || is_block_free(fs, dir_block)){
+        return -1;
+    }
+
+    block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
+    if(fdb == INVALID_BLOCK){
+        return -1;
+    }
+
+    DIR_ENTRY* de;
+    DIR_ENTRY* temp = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
+    if(fdb == ROOT_DIR_STARTING_BLOCK){
+        de = temp;
+    }
+    else{
+        de = dir_entry_pos_to_dir_entry_pointer(fs, temp->internal_dir_ref.ref);
+    }
+
+    if(de->is_dir != DIR && de->is_dir != DIR_REF_ROOT){
+        return -1;
+    }
+
+    strncpy(name_buf, de->name, MAX_FILENAME_SIZE);
+
+    return 0;
 }
