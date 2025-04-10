@@ -132,8 +132,12 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     BLOCK* first_root_dir_block = get_fs_block_section(&new_fs);
     DIR_ENTRY* first_dir_entry = ((DIR_ENTRY*)first_root_dir_block);
 
-    first_dir_entry->name[0] = '/';
-    first_dir_entry->name[1] = '\0';
+    first_dir_entry->name[0] = 'r';
+    first_dir_entry->name[1] = 'o';
+    first_dir_entry->name[2] = 'o';
+    first_dir_entry->name[3] = 't';
+
+    first_dir_entry->name[4] = '\0';
 
     first_dir_entry->file_extension[0] = '\0';
 
@@ -345,10 +349,12 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
 
     DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, directory_block);
     if(is_dir_entry_position_null(de_p)){
-        // TODO
-        // Implementa l'estensione della cartella
-        mini_log(ERROR, "create_file", "ESTENSIONE DELLE CARTELLE NON ANCORA IMPLEMENTATA");
-        return NULL;
+        if(extend_dir(m_fs, first_dir_block, 1)){
+            mini_log(ERROR, "create_file", "Estensione della cartella fallita");    
+            return NULL;
+        }
+        
+        mini_log(LOG, "create_file", "Cartella estesa per accomodare una nuova file_entry");
     }
 
     DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
@@ -548,10 +554,12 @@ block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_n
     // Ottieni la dir_entry in cui salvare questa nuova cartella
     DIR_ENTRY_POSITION de_p = get_available_dir_entry(m_fs->fs, first_dir_block);
     if(is_dir_entry_position_null(de_p)){
-        // Devo estendere la cartella attuale per ottenere una dir_entry libera
-        // TODO
-        mini_log(ERROR, "create_dir", "Estensione della cartella non ancora implementata");
-        return INVALID_BLOCK;
+        if(extend_dir(m_fs, first_dir_block, 1)){
+            mini_log(ERROR, "create_dir", "Estensione della cartella fallita");    
+            return INVALID_BLOCK;
+        }
+        
+        mini_log(LOG, "create_dir", "Cartella estesa per accomodare una nuova file_entry");
     }
 
     DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
