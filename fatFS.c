@@ -381,13 +381,9 @@ FILE_HANDLE* create_file(MOUNTED_FS* m_fs, block_num_t directory_block, char* fi
 
     mini_log(LOG, "create_file", "File creato con successo");
 
-    FILE_HANDLE* file_handle = (FILE_HANDLE*) malloc(sizeof(FILE_HANDLE));
+    FILE_HANDLE* file_handle = get_or_create_file_handle(m_fs, de->file.start_block);
     if(file_handle == NULL)
         mini_log(ERROR, "create_file", "Impossibile allocare il file handle (RAM disponibile insufficiente?)");
-
-    file_handle->first_file_block = de->file.start_block;
-    file_handle->head_pos = 0;
-    file_handle->m_fs = m_fs;
 
     return file_handle;
 }

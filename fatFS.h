@@ -6,7 +6,7 @@
 #define byte_offset unsigned long int
 #define block_num_t int             // Deve essere intero ed avere il valore -1 nel suo dominio
 
-#define MAX_BLOCKS (1LL << ((sizeof(block_num_t) * 8)) - 1) - 1
+#define MAX_BLOCKS (1LL << ((sizeof(block_num_t) * 8) -1)) - 1
 
 #define ROOT_DIR_STARTING_BLOCK 0   // Deve rimanere 0 !!
 
