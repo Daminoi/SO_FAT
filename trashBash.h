@@ -39,6 +39,8 @@
 #define TB_DELETE_DIR                   12
 #define TB_DELETE_DIR_STRING            "rmd"
 
+#define DELIMS " \t"
+
 #define MAX_PATH_LENGTH 64
 
 typedef struct TRASHBASH_PATH{

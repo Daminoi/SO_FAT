@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 #include "trashBash.h"
 #include "fatFS.h"
@@ -75,14 +77,16 @@ int tb_print_prompt(TRASHBASH_PATH* path){
     if(path == NULL || path->m_fs == NULL){
         // TODO
         // Prima di aver montato un fs, mostra delle indicazioni
-        return -1;
+        printf("§ ");
+
+        return 0;
     }
     else{
-        tb_pwd_impl(path);
+        int retv = tb_pwd_impl(path);
 
         printf("$ ");
 
-        return 0;
+        return retv;
     }
 }
 
@@ -251,7 +255,7 @@ void tb_tree_helper(MOUNTED_FS* m_fs, block_num_t first_dir_block, unsigned int 
     }
     else if(list_to_explore->n_elems < 0){
         for(int i=0; i < blank_offset; ++i){
-            fputc(' ', stdin);
+            fputc(' ', stdout);
         }
 
         printf("! Cartella corrotta (numero di elementi contenuti negativo)\n");
@@ -263,7 +267,7 @@ void tb_tree_helper(MOUNTED_FS* m_fs, block_num_t first_dir_block, unsigned int 
 
     while(curr != NULL){
         for(int i=0; i < blank_offset; ++i){
-            fputc(' ', stdin);
+            fputc(' ', stdout);
         }
 
         if(curr->elem->is_dir == DATA){
@@ -303,15 +307,13 @@ int tb_tree(TRASHBASH_PATH* path){
     return 0;
 }
 
-#define DELIMS " \t"
-
 int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, char* second_param_out_buffer, int* more_params_found){
     char* cmd_str;
     first_param_out_buffer[0] = '\0';
     second_param_out_buffer[0] = '\0';
 
     cmd_str = strtok(user_input_in_buffer, DELIMS);
-    if(cmd_str == NULL){
+    if(strlen(user_input_in_buffer) == 0 || cmd_str == NULL){
         return TB_NO_COMMAND;
     }
 
@@ -381,4 +383,240 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     }
 
     return cmd;
+}
+
+void tb_print_version_info(){
+    printf("TrashBash (ultima modifica %s\n\n", __TIMESTAMP__);
+    return;
+}
+
+void print_help(){
+    return;
+}
+
+bool contains_invalid_chars(char* str_to_check){
+    if(str_to_check == NULL){
+        return false;
+    }
+
+    char* curr_char = str_to_check;
+    
+    while(*curr_char != '\0'){
+        if(isalnum(*curr_char) == false && *curr_char != '.'){
+            return true;
+        }
+
+        ++curr_char;
+    }
+
+    return false;
+}
+
+// Restituisce 0 se la stringa in input è un nome valido per una cartella, -1 altrimenti
+// Va usata solo dopo aver eseguito contains_invalid_chars(dir_name)
+int is_valid_dir_name(char* dir_name){
+    if(dir_name == NULL){
+        return -1;
+    }
+
+    if(strlen(dir_name) > MAX_FILENAME_SIZE || strchr(dir_name, '.') != NULL){
+        return -1;
+    }
+
+    return 0;
+}
+
+// Restituisce 0 se è un nome valido per un file, -1 altrimenti
+// Separa anche nome del file ed estensione nei due buffer specificati
+int extract_file_name_and_extension(char* complete_filename_in_buffer, char* filename_out_buffer, char* extension_out_buffer){
+    char* str = strtok(complete_filename_in_buffer, ".");
+    if(strlen(str) > MAX_FILENAME_SIZE){
+        return -1;
+    }
+
+    strncpy(filename_out_buffer, str, MAX_FILENAME_SIZE);
+
+    str = strtok(NULL, ".");
+    if(strlen(str) > MAX_FILE_EXTENSION_SIZE){
+        return -1;
+    }
+
+    strncpy(extension_out_buffer, str, MAX_FILE_EXTENSION_SIZE);
+
+    if(strtok(NULL, ".") != NULL){
+        return -1;
+    }
+
+    return 0;
+}
+
+void replace_char(char *str, char to_be_replaced, char replacement_char) {
+    char* curr_char = str;
+    
+    while((curr_char = strchr(curr_char, to_be_replaced)) != NULL) {
+        *curr_char = replacement_char;
+        ++curr_char;
+    }
+}
+
+bool fs_mounted(TRASHBASH_PATH* path){
+    if(path == NULL || path->m_fs == NULL){
+        return false;
+    }
+    
+    return true;
+}
+
+void trash_bash(){
+    bool quit = false;
+
+    TRASHBASH_PATH path;
+    path.depth = -1;
+    path.m_fs = NULL;
+
+    char* user_input = (char*) malloc(USER_INPUT_BUF_SIZE);
+    if(user_input == NULL){
+        printf("\nMemoria insufficiente\n");
+        return;
+    }
+
+    int cmd;
+    char first_param[PARAM_BUF_SIZE];
+    char second_param[PARAM_BUF_SIZE];
+    int more_params;
+
+    size_t user_input_max_size = USER_INPUT_BUF_SIZE;
+
+    int error;
+
+    char dir_name[MAX_FILENAME_SIZE + 1];
+    char file_name[MAX_FILENAME_SIZE + 1];
+    char file_extension[MAX_FILE_EXTENSION_SIZE + 1];
+
+    tb_print_version_info();
+
+    do{
+        error = 0;
+        tb_print_prompt(&path);
+
+        getline(&user_input, &user_input_max_size, stdin);
+        fflush(stdin);
+        
+        replace_char(user_input, '\n', '\0');
+
+        cmd = tb_parse_input(user_input, first_param, second_param, &more_params);
+
+
+        switch(cmd){
+        case TB_QUIT:
+            quit = true;
+            break;
+        case TB_NO_COMMAND:
+            printf("\n");
+            break;
+        case TB_HELP:
+            print_help();
+            break;
+        case TB_MOUNT_FS_FROM_FILE:
+            // Verifica prerequisiti
+            if(fs_mounted(&path)){
+                error = -1;
+                break;
+            }
+            if(contains_invalid_chars(first_param)){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_mount_fs_from_file(first_param, &path)){
+                error = -1;
+                break;
+            }
+            break;
+        case TB_UNMOUNT:
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_unmount_fs(&path)){
+                error = -1;
+                break;
+            }
+            break;
+        case TB_CREATE_FS_ON_FILE:
+            // Verifica prerequisiti
+            if(fs_mounted(&path)){
+                error = -1;
+                break;
+            }
+            if(contains_invalid_chars(first_param)){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_create_new_fs_on_file(first_param)){
+                error = -1;
+                break;
+            }
+            break;
+        case TB_CHANGE_DIR:
+            // TODO
+            // Deve essere già montato un filesystem
+            // Il primo parametro deve essere ".." o il nome di una cartella
+            break;
+        case TB_PWD:
+            // TODO
+            // Deve essere già montato un filesystem
+            break;
+        case TB_LIST:
+            // TODO
+            // Deve essere già montato un filesystem
+            break;
+        case TB_TREE:
+            // TODO
+            // Deve essere già montato un filesystem
+            break;
+        case TB_CREATE_DIR:
+            // TODO
+            // Deve essere già montato un filesystem
+            // Il primo parametro deve essere un nome valido per una cartella
+            break;
+        case TB_CREATE_FILE:
+            // TODO
+            // Deve essere già montato un filesystem
+            // Il primo parametro deve essere un nome valido per un file
+            break;
+        case TB_DELETE_DIR:
+            // TODO
+            // Deve essere già montato un filesystem
+            // Il primo parametro deve essere un nome valido per un file
+            break;
+        case TB_DELETE_FILE:
+            // TODO
+            // Deve essere già montato un filesystem
+            // Il primo parametro deve essere un nome valido per un file
+            break;
+        
+        case TB_UNKNOWN_COMMAND:
+            printf("Comando sconosciuto, usa 'help' per la lista di comandi\n");
+            break;
+        default:
+            printf("Comando non previsto\n");
+            break;
+        }
+        
+
+    }while(quit != true);
+
+    if(fs_mounted(&path) == false){
+        tb_unmount_fs(&path);
+    }
+
+    free(user_input);
+    return;
 }
