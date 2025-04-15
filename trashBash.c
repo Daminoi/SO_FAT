@@ -59,7 +59,7 @@ int tb_pwd_impl(TRASHBASH_PATH* path){
 
     for(int i=1; i <= path->depth; ++i){
         get_directory_name(path->m_fs->fs, path->path[i], dir_name_buf);
-        printf("//%s", dir_name_buf);
+        printf("/%s", dir_name_buf);
     }
 
     return 0;
@@ -304,7 +304,7 @@ int tb_tree(TRASHBASH_PATH* path){
     char start_dir_name[MAX_FILENAME_SIZE + 1];
     get_directory_name(path->m_fs->fs, path->path[path->depth], start_dir_name);
 
-    printf("%s\n", start_dir_name);
+    printf("+ %s\n", start_dir_name);
 
     tb_tree_helper(path->m_fs, path->path[path->depth], 2);
 
@@ -440,16 +440,26 @@ bool contains_invalid_chars(char* str_to_check){
 
 // Restituisce 0 se la stringa in input è un nome valido per una cartella, -1 altrimenti
 // Va usata solo dopo aver eseguito contains_invalid_chars(dir_name)
-int is_valid_dir_name(char* dir_name){
+bool is_valid_dir_name(char* dir_name){
     if(dir_name == NULL){
-        return -1;
+        return false;
     }
 
-    if(strlen(dir_name) > MAX_FILENAME_SIZE || strchr(dir_name, '.') != NULL){
-        return -1;
+    if(strlen(dir_name) > MAX_FILENAME_SIZE){
+        printf("La dimensione massima del nome di una cartella è di %d caratteri\n", MAX_FILENAME_SIZE);
+        return false;
     }
 
-    return 0;
+    // Non devono essserci '.' nel nome di una cartella
+    if(strchr(dir_name, '.') == NULL){
+        return true;
+    }
+    else{
+        printf("Non devono esservi '.' nel nome di una cartella\n");
+        return false;
+    }
+
+    return true;
 }
 
 // Restituisce 0 se è un nome valido per un file, -1 altrimenti
@@ -549,12 +559,12 @@ void trash_bash(){
         case TB_MOUNT_FS_FROM_FILE:
             // Verifica prerequisiti
             if(fs_mounted(&path)){
-                printf("Un fs è già montato, esegui '%s' prima di montarne un altro", TB_UNMOUNT_STRING);
+                printf("Un fs è già montato, esegui '%s' prima di montarne un altro\n", TB_UNMOUNT_STRING);
                 error = -1;
                 break;
             }
             if(contains_invalid_chars(first_param)){
-                printf("Sono ammessi solo caratteri alfanumerici");
+                printf("Sono ammessi solo caratteri alfanumerici\n");
                 error = -1;
                 break;
             }
@@ -568,7 +578,7 @@ void trash_bash(){
         case TB_UNMOUNT:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
@@ -586,7 +596,7 @@ void trash_bash(){
                 break;
             }
             if(contains_invalid_chars(first_param)){
-                printf("Sono ammessi solo caratteri alfanumerici");
+                printf("Sono ammessi solo caratteri alfanumerici\n");
                 error = -1;
                 break;
             }
@@ -600,21 +610,23 @@ void trash_bash(){
         case TB_CHANGE_DIR:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
-            if(strcmp(first_param, "..") != 0 && contains_invalid_chars(first_param)){
-                printf("Sono ammessi solo caratteri alfanumerici");
-                error = -1;
-                break;
+            if(strcmp(first_param, "..") != 0){
+                if(contains_invalid_chars(first_param)){
+                    printf("Sono ammessi solo caratteri alfanumerici\n");
+                    error = -1;
+                    break;
+                }
+                if(is_valid_dir_name(first_param) == false){
+                    printf("Non è un nome valido per una cartella\n");
+                    error = -1;
+                    break;
+                }
             }
-            if(is_valid_dir_name(first_param) == false){
-                printf("Non è un nome valido per una cartella");
-                error = -1;
-                break;
-            }
-
+            
             // Esecuzione effettiva del comando
             if(tb_change_dir(&path, first_param)){
                 error = -1;
@@ -624,7 +636,7 @@ void trash_bash(){
         case TB_PWD:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
@@ -638,7 +650,7 @@ void trash_bash(){
         case TB_LIST:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
@@ -652,7 +664,7 @@ void trash_bash(){
         case TB_TREE:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
@@ -666,15 +678,21 @@ void trash_bash(){
         case TB_CREATE_DIR:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
-            if(contains_invalid_chars(first_param) || is_valid_dir_name(first_param) == false){
-                printf("Non è un nome valido per una cartella");
+            if(contains_invalid_chars(first_param)){
+                printf("Sono ammessi solo caratteri alfanumerici\n");
                 error = -1;
                 break;
             }
+            if(is_valid_dir_name(first_param) == false){
+                printf("'%s' non è un nome valido per una cartella\n", first_param);
+                error = -1;
+                break;
+            }
+
 
             // Esecuzione effettiva del comando
             if(tb_create_dir(&path, first_param, NULL)){
@@ -685,12 +703,12 @@ void trash_bash(){
         case TB_CREATE_FILE:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
             if(extract_file_name_and_extension(first_param, file_name, file_extension)){
-                printf("Non è un nome valido per un file");
+                printf("Non è un nome valido per un file\n");
                 error = -1;
                 break;
             }
@@ -705,12 +723,12 @@ void trash_bash(){
         case TB_DELETE_DIR:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
             if(contains_invalid_chars(first_param) || is_valid_dir_name(first_param) == false){
-                printf("Non è un nome valido per una cartella");
+                printf("'%s' non è un nome valido per una cartella\n", first_param);
                 error = -1;
                 break;
             }
@@ -724,12 +742,12 @@ void trash_bash(){
         case TB_DELETE_FILE:
             // Verifica prerequisiti
             if(fs_mounted(&path) == false){
-                printf("Nessun fs è stato montato");
+                printf("Nessun fs è stato montato\n");
                 error = -1;
                 break;
             }
             if(extract_file_name_and_extension(first_param, file_name, file_extension)){
-                printf("Non è un nome valido per un file");
+                printf("Non è un nome valido per un file\n");
                 error = -1;
                 break;
             }
@@ -750,7 +768,7 @@ void trash_bash(){
         }
         
         if(error == -1){
-            printf("Errore nell'esecuzione, usa 'help' per ricevere informazioni sui comandi\n");
+            printf("Si è verificato un errore, usa 'help' per ricevere informazioni sui comandi\n");
         }
 
     }while(quit != true);

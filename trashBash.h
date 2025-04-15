@@ -24,7 +24,7 @@
 #define TB_PWD                          5
 #define TB_PWD_STRING                   "pwd"
 #define TB_LIST                         6
-#define TB_LIST_STRING                  "list"
+#define TB_LIST_STRING                  "ls"
 #define TB_TREE                         7
 #define TB_TREE_STRING                  "tree"
 #define TB_CHANGE_DIR                   8

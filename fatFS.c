@@ -29,8 +29,8 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     unsigned long file_size = 0;
 
     if(n_blocks <= 100){
-        printf("Chiesto fs da %d blocchi, verrà allocato da 2001 blocchi (dimensione minima di 100 non raggiunta).\n", n_blocks);
-        n_blocks = 2000 + 1; // Approssimativamente 1 MB di dimensione se BLOCK_SIZE = 512 (il blocco in più è per la root directory)
+        printf("Chiesto fs da %d blocchi, verrà allocato da 1001 blocchi (dimensione minima di 100 non raggiunta).\n", n_blocks);
+        n_blocks = 1000 + 1; // (il blocco in più è per la root directory)
     }
 
     // Dimensione delle informazioni sul fs
@@ -253,7 +253,7 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
 
     fs->start_location = (char*)mmapped_fs;
     fs->fat_offset = sizeof(FAT_FS_HEADER);
-    fs->block_section_offset = sizeof(FAT_ENTRY) * header->n_blocks;
+    fs->block_section_offset = (sizeof(FAT_ENTRY) * header->n_blocks) + sizeof(FAT_FS_HEADER);
 
     /*
         Passo 6: Popola la struttura MOUNTED_FS e poni a NULL la lista di file_handle aperti
@@ -556,6 +556,7 @@ block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_n
         }
         
         mini_log(LOG, "create_dir", "Cartella estesa per accomodare una nuova file_entry");
+        de_p = get_available_dir_entry(m_fs->fs, first_dir_block);
     }
 
     DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(m_fs->fs, de_p);
@@ -577,7 +578,7 @@ block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_n
     
     // DEVO AGGIORNARE la directory in cui si trova questa nuova, dato che ora contiene un elemento in più.
     if(update_dir_elem_added(m_fs->fs, curr_dir_block)){
-        mini_log(ERROR, "erase_dir", "Fallito aggiornamento della cartella genitore di quella creata");
+        mini_log(ERROR, "create_dir", "Fallito aggiornamento della cartella genitore di quella creata");
     }
     
     mini_log(LOG, "create_dir", "Cartella creata con successo");
@@ -608,6 +609,7 @@ int erase_dir(MOUNTED_FS* m_fs, block_num_t dir_block){
     
     // Controlla che la cartella sia vuota
     if(get_dir_n_elems(m_fs->fs, fdb) > 0){
+        mini_log(WARNING, "erase_dir", "La cartella da eliminare non è vuota");
         return -1;
     }
 

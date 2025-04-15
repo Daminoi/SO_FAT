@@ -182,7 +182,8 @@ DIR_ENTRY_POSITION get_available_dir_entry_helper(const FAT_FS* fs, block_num_t 
         if(curr_de->is_dir == EMPTY){
             mini_log(LOG, "get_available_dir_entry", "Trovata file entry libera nella cartella");
             de_p.block = curr_dir_block;
-            de_p.offset = i-1;
+            de_p.offset = i;
+            printf("EXTRA (get_available_dir_entry_helper) trovata dir_entry libera con block=%d offset=%d\n", de_p.block, de_p.offset);
             return de_p;
         }
     }
@@ -298,6 +299,8 @@ BLOCK* block_num_to_block_pointer(const FAT_FS* fs, block_num_t block_num){
         mini_log(ERROR, "block_num_to_block_pointer", "Tentativo di ottenere il puntatore a un blocco non valido o non allocato");
         return false;
     }
+
+    // printf("EXTRA (block_num_to_block_pointer) blocco richiesto (%d) a indirizzo %p\n", block_num, get_fs_block_section(fs) + block_num);
     
     return (get_fs_block_section(fs) + block_num);
 }
@@ -397,6 +400,7 @@ block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_
         return de->internal_dir_ref.ref.block;
     }
     else{
+        printf("EXTRA (get_first_dir_block_from_curr_dir_block) de->is_dir ha un valore errato, vale %d\n", de->is_dir);
         mini_log(ERROR, "get_first_dir_block_from_curr_dir_block", "Impossibile procedere, probabilmente è stato passato un blocco che non appartiene a una cartella o il fs è corrotto");
         return INVALID_BLOCK;
     }

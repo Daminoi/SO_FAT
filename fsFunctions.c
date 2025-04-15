@@ -366,25 +366,28 @@ int extend_dir(MOUNTED_FS* m_fs, block_num_t dir_block, block_num_t n_blocks_to_
 
 int update_dir_elem_added(const FAT_FS* fs, block_num_t dir_block){
     if(fs == NULL){
+        mini_log(ERROR, "update_dir_elem_added", "Fs nullo");
         return -1;
     }
 
     block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
     if(fdb == INVALID_BLOCK){
+        mini_log(ERROR, "update_dir_elem_added", "Impossibile ottenere il primo blocco della cartella");
         return -1;
     }
 
     DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
     if(de == NULL){
+        mini_log(ERROR, "update_dir_elem_added", "Impossibile ottenere il puntatore al blocco");
         return -1;
     }
 
     if(fdb == ROOT_DIR_STARTING_BLOCK){
-        ++de->file.n_elems;
+        ++(de->file.n_elems);
     }
     else{
         DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
-        ++de_to_update->file.n_elems;
+        ++(de_to_update->file.n_elems);
     }
 
     return 0;
@@ -392,25 +395,28 @@ int update_dir_elem_added(const FAT_FS* fs, block_num_t dir_block){
 
 int update_dir_elem_removed(const FAT_FS* fs, block_num_t dir_block){
     if(fs == NULL){
+        mini_log(ERROR, "update_dir_elem_removed", "Fs nullo");
         return -1;
     }
 
     block_num_t fdb = get_first_dir_block_from_curr_dir_block(fs, dir_block);
     if(fdb == INVALID_BLOCK){
+        mini_log(ERROR, "update_dir_elem_removed", "Impossibile ottenere il primo blocco della cartella");
         return -1;
     }
 
     DIR_ENTRY* de = (DIR_ENTRY*) block_num_to_block_pointer(fs, fdb);
     if(de == NULL){
+        mini_log(ERROR, "update_dir_elem_removed", "Impossibile ottenere il puntatore al blocco");
         return -1;
     }
 
     if(fdb == ROOT_DIR_STARTING_BLOCK){
-        --de->file.n_elems;
+        --(de->file.n_elems);
     }
     else{
         DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
-        --de_to_update->file.n_elems;
+        --(de_to_update->file.n_elems);
     }
 
     return 0;
