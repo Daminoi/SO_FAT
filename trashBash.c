@@ -194,11 +194,15 @@ int tb_create_dir(TRASHBASH_PATH* path, char* dir_name_buffer, block_num_t* new_
 
     block_num_t dir = create_dir(path->m_fs, path->path[path->depth], dir_name_buffer);
     if(dir == INVALID_BLOCK){
-        *new_dir = INVALID_BLOCK;
+        if(new_dir != NULL){
+            *new_dir = INVALID_BLOCK;
+        }
         return -1;
     }
     else{
-        *new_dir = dir;
+        if(new_dir != NULL){
+            *new_dir = dir;
+        }
         return 0;
     }
 }
@@ -322,6 +326,9 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     if(strcmp(cmd_str, TB_HELP_STRING) == 0){
         cmd = TB_HELP;
     }
+    else if(strcmp(cmd_str, TB_CLS_STRING) == 0){
+        cmd = TB_CLS;
+    }
     else if(strcmp(cmd_str, TB_QUIT_STRING) == 0){
         cmd = TB_QUIT;
     }
@@ -391,6 +398,25 @@ void tb_print_version_info(){
 }
 
 void print_help(){
+    printf("Lista di comandi disponibili:\n\n");
+
+    printf("> %s [nome_nuovo_file_su_computer]  : crea un nuovo fs_fat sul file 'nome_nuovo_file_su_computer' (nel file system vero di questo computer) che sarà poi possibile montare\n", TB_CREATE_FS_ON_FILE_STRING);
+    printf("> %s [nome_file_su_computer_con_fs] : monta il fs_fat presente sul file 'nomefile_su_computer_con_fs'\n", TB_MOUNT_FS_FROM_FILE_STRING);
+    printf("> %s                                : esegue l'unmount del fs attualmente montato\n", TB_UNMOUNT_STRING);
+
+    printf("> %s                                : pulisce il terminale\n", TB_CLS_STRING);
+    printf("> %s                                : chiude la TrashBash\n", TB_QUIT_STRING);
+    printf("> %s                                : stampa il percorso attuale\n", TB_PWD_STRING);
+    printf("> %s                                : stampa il contenuto della cartella attuale\n", TB_LIST_STRING);
+    printf("> %s                                : stampa l'albero del fs\n", TB_TREE_STRING);
+    printf("> %s [nome_cartella]                : cambia la cartella attuale a quella di nome 'nome_cartella' (che deve essere contenuta nella cartella attuale, non sono supportati percorsi relativi o percorsi assoluti), se 'nome_cartella' è '..' allora sale di un livello nel fs\n", TB_CHANGE_DIR_STRING);
+
+    printf("> %s [nome_nuovo_file]              : crea un nuovo file di nome 'nome_nuovo_file' nella cartella attuale, non deve essere già presente un file con quel nome\n", TB_CREATE_FILE_STRING);
+    printf("> %s [nome_file_da_cancellare]      : elimina il file di nome 'nome_file_da_cancellare' presente nella cartella attuale\n", TB_DELETE_FILE_STRING);
+    printf("> %s [nome_nuova_cartella]          : crea una nuova cartella di nome 'nome_nuova_cartella' nella cartella attuale, non deve essere già presente una cartella con quel nome\n", TB_CREATE_DIR_STRING);
+    printf("> %s [nome_cartella_da_cancellare]  : elimina la cartella di nome 'nome_cartella_da_cancellare' presente nella cartella attuale\n", TB_DELETE_DIR_STRING);
+    
+    printf("\n");
     return;
 }
 
@@ -501,6 +527,7 @@ void trash_bash(){
 
         getline(&user_input, &user_input_max_size, stdin);
         fflush(stdin);
+        printf("\n");
         
         replace_char(user_input, '\n', '\0');
 
@@ -512,10 +539,12 @@ void trash_bash(){
             quit = true;
             break;
         case TB_NO_COMMAND:
-            printf("\n");
             break;
         case TB_HELP:
             print_help();
+            break;
+        case TB_CLS:
+            system("cls");
             break;
         case TB_MOUNT_FS_FROM_FILE:
             // Verifica prerequisiti
@@ -565,55 +594,151 @@ void trash_bash(){
             }
             break;
         case TB_CHANGE_DIR:
-            // TODO
-            // Deve essere già montato un filesystem
-            // Il primo parametro deve essere ".." o il nome di una cartella
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+            if(strcmp(first_param, "..") != 0 && contains_invalid_chars(first_param)){
+                error = -1;
+                break;
+            }
+            if(is_valid_dir_name(first_param) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_change_dir(&path, first_param)){
+                error = -1;
+                break;
+            }
             break;
         case TB_PWD:
-            // TODO
-            // Deve essere già montato un filesystem
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_pwd(&path)){
+                error = -1;
+                break;
+            }
             break;
         case TB_LIST:
-            // TODO
-            // Deve essere già montato un filesystem
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_list(&path)){
+                error = -1;
+                break;
+            }
             break;
         case TB_TREE:
-            // TODO
-            // Deve essere già montato un filesystem
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_tree(&path)){
+                error = -1;
+                break;
+            }
             break;
         case TB_CREATE_DIR:
-            // TODO
-            // Deve essere già montato un filesystem
-            // Il primo parametro deve essere un nome valido per una cartella
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+            if(contains_invalid_chars(first_param) || is_valid_dir_name(first_param) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_create_dir(&path, first_param, NULL)){
+                error = -1;
+                break;
+            }
             break;
         case TB_CREATE_FILE:
-            // TODO
-            // Deve essere già montato un filesystem
-            // Il primo parametro deve essere un nome valido per un file
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+            if(extract_file_name_and_extension(first_param, file_name, file_extension)){
+                error = -1;
+                break;
+            }
+        
+            // Esecuzione effettiva del comando
+            FILE_HANDLE* new_file;
+            if(tb_create_file(&path, file_name, file_extension, &new_file)){
+                error = -1;
+                break;
+            }
             break;
         case TB_DELETE_DIR:
-            // TODO
-            // Deve essere già montato un filesystem
-            // Il primo parametro deve essere un nome valido per un file
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+            if(contains_invalid_chars(first_param) || is_valid_dir_name(first_param) == false){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_delete_dir(&path, first_param)){
+                error = -1;
+                break;
+            }
             break;
         case TB_DELETE_FILE:
-            // TODO
-            // Deve essere già montato un filesystem
-            // Il primo parametro deve essere un nome valido per un file
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                error = -1;
+                break;
+            }
+            if(extract_file_name_and_extension(first_param, file_name, file_extension)){
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_delete_file(&path, file_name, file_extension)){
+                error = -1;
+                break;
+            }
             break;
         
         case TB_UNKNOWN_COMMAND:
-            printf("Comando sconosciuto, usa 'help' per la lista di comandi\n");
+            printf("Comando sconosciuto, usa 'help' per vedere la lista di comandi\n");
             break;
         default:
             printf("Comando non previsto\n");
             break;
         }
         
+        if(error == -1){
+            printf("Errore nell'esecuzione, usa 'help' per ricevere informazioni sui comandi\n");
+        }
 
     }while(quit != true);
 
-    if(fs_mounted(&path) == false){
+    // Prima di terminare, esegui unmount del fs se l'utente non lo ha fatto
+    if(fs_mounted(&path)){
         tb_unmount_fs(&path);
     }
 

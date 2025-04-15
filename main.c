@@ -2,14 +2,10 @@
 #include <stdbool.h>
 
 #include "fatFS.h"
+#include "trashBash.h"
 
 int main(){
-    // Qui ci sarà l'opzione per eseguire i test o per avviare trashbash e provare il programma finito
-    
-    
-    
-    
-    
+
     printf("\n\tTESTER-> fatFS versione %d\n\n", CURRENT_FS_VERSION);
 
     const int expected_tests = 3; // DA AGGIORNARE IN BASE AL NUMERO DI TEST SCRITTI
@@ -63,6 +59,8 @@ int main(){
         }
     }
 
-
     printf("\n\n\tTESTER-> Procedura completata:\n\t\ttest effettuati %d di %d\n\t\ttest completati %d, test falliti %d\n\n", performed_tests, expected_tests, completed_tests, failed_tests);
+
+    printf("Avvio TrashBash\n");
+    trash_bash();
 }

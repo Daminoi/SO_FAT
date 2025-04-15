@@ -39,6 +39,9 @@
 #define TB_DELETE_DIR                   12
 #define TB_DELETE_DIR_STRING            "rmd"
 
+#define TB_CLS                          13
+#define TB_CLS_STRING                   "cls"
+
 #define DELIMS " \t"
 
 #define MAX_PATH_LENGTH 64
