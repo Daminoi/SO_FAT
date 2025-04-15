@@ -10,12 +10,12 @@
 void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
     if(is_not_null_fs(fs) && is_block_valid(fs, block_to_clear)){
         memset(((get_fs_block_section(fs) + block_to_clear)), 0, BLOCK_SIZE);
-        printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
+        //printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
         //mini_log(LOG, "clear_block", "Blocco azzerato");
     }
     else{
-        printf("EXTRA (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
-        //mini_log(ERROR, "clear_block", "Impossibile azzerare un blocco");
+        //printf("EXTRA (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
+        mini_log(ERROR, "clear_block", "Impossibile azzerare un blocco");
     }
 }
 

@@ -544,7 +544,7 @@ block_num_t create_dir(MOUNTED_FS* m_fs, block_num_t curr_dir_block, char* dir_n
     DIR_ENTRY* already_exists = get_dir_by_name(m_fs->fs, first_dir_block, dir_name_buf);
     if(already_exists != NULL){
         mini_log(WARNING, "create_dir", "Esiste già una cartella con lo stesso nome");
-        return NULL;
+        return INVALID_BLOCK;
     }
 
     // Ottieni la dir_entry in cui salvare questa nuova cartella
@@ -736,7 +736,7 @@ DIR_EXPLORER* list_dir(MOUNTED_FS* m_fs, block_num_t curr_dir){
     return exp;
 }
 
-void delete_dir_list(DIR_EXPLORER* exp){
+void delete_list_dir(DIR_EXPLORER* exp){
     if(exp == NULL){
         return;
     }

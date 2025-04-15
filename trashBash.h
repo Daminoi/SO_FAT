@@ -40,7 +40,7 @@
 #define TB_DELETE_DIR_STRING            "rmd"
 
 #define TB_CLS                          13
-#define TB_CLS_STRING                   "cls"
+#define TB_CLS_STRING                   "clear"
 
 #define DELIMS " \t"
 
