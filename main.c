@@ -22,7 +22,7 @@ int main(){
 
     if(!failed_tests){
         ++performed_tests;
-        if(create_fs_on_file("param_non_utilizzato.txt", 6666) != 0){
+        if(create_fs_on_file("fat.myfat", 2001) != 0){
             printf("\n\tTESTER-> Test creazione file system su file: ERRORE\n\n");
             ++failed_tests;
         }

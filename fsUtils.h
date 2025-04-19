@@ -34,6 +34,7 @@ BLOCK* block_num_to_block_pointer(const FAT_FS* fs, block_num_t block);
 
 block_num_t get_parent_dir_block(const FAT_FS* fs, block_num_t curr_dir_block);
 
+// Funzione non sicura, non ha controlli sui parametri
 unsigned int file_size_bytes_to_file_size_blocks(size_t file_size, bool include_first_block_data);
 
 bool can_create_new_file(const FAT_FS* fs, block_num_t curr_dir_block);
@@ -52,4 +53,9 @@ block_num_t get_last_block_file_or_dir(const FAT_FS* fs, block_num_t file_or_dir
 block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_t dir_block);
 
 int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block);
+
+// first_file_block DEVE essere il numero del primo blocco del file o il comportamento della funzione è indefinito
+// non è una funzione sicura
+unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block);
+
 #endif /* FS_UTILS_H */

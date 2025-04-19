@@ -406,7 +406,6 @@ block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_
     }
 }
 
-
 int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block){
     if(fs == NULL){
         return -1;
@@ -429,4 +428,32 @@ int get_dir_n_elems(const FAT_FS* fs, block_num_t dir_block){
         DIR_ENTRY* de_to_update = dir_entry_pos_to_dir_entry_pointer(fs, de->internal_dir_ref.ref);
         return de_to_update->file.n_elems;
     }
+}
+
+unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block){
+    if(fs == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    if(is_block_valid(fs, first_file_block) == false || is_block_free(fs, first_file_block)){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    // operazione pericolosa 1
+    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*)block_num_to_block_pointer(fs, first_file_block);
+    if(ffb == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    // operazione pericolosa 2
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(fs, ffb->dir_entry_pos);
+    if(de == NULL){
+        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
+        return 0;
+    }
+
+    return de->file.file_size;
 }

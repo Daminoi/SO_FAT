@@ -128,19 +128,24 @@ bool free_block(const FAT_FS* fs, const block_num_t block_to_free){
     return true;
 }
 
-int write_to_file_block(const FAT_FS* fs, const block_num_t block_to_write, char* from_buffer, size_t length){
+int write_to_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* src_buffer, size_t length){
     if(is_not_null_fs(fs) == false){
         mini_log(ERROR, "write_to_block", "Impossibile operare su un fs nullo o non valido.");
         return -1;
     }
 
-    if(is_block_valid(fs, block_to_write) == false ){
+    if(is_block_valid(fs, target_block) == false ){
         mini_log(ERROR, "write_to_block", "Blocco su cui scrivere inesistente!");
         return -1;
     }
 
-    if(is_block_free(fs, block_to_write)){
+    if(is_block_free(fs, target_block)){
         mini_log(ERROR, "write_to_block", "Blocco su cui scrivere non allocato!");
+        return -1;
+    }
+
+    if(offset >= BLOCK_SIZE){
+        mini_log(ERROR, "write_to_block", "Offset errato");
         return -1;
     }
 
@@ -149,9 +154,54 @@ int write_to_file_block(const FAT_FS* fs, const block_num_t block_to_write, char
         return -1;
     }
 
-    BLOCK* blck = ((BLOCK*)get_fs_block_section(fs)) + block_to_write;
+    if(offset + length > BLOCK_SIZE){
+        mini_log(ERROR, "write_to_block", "Non è possibile scrivere il numero di caratteri richiesto a partire dall'offset specificato");
+        return -1;
+    }
 
-    memcpy(blck, from_buffer, length);
+    BLOCK* blck = ((BLOCK*)get_fs_block_section(fs)) + target_block;
+    char* write_start = ((char*)blck) + offset;
+
+    memcpy(write_start, src_buffer, length);
+
+    return 0;
+}
+
+int read_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* dst_buffer, size_t length){
+    if(is_not_null_fs(fs) == false){
+        mini_log(ERROR, "read_block", "Impossibile operare su un fs nullo o non valido.");
+        return -1;
+    }
+
+    if(is_block_valid(fs, target_block) == false ){
+        mini_log(ERROR, "read_block", "Blocco da leggere inesistente!");
+        return -1;
+    }
+
+    if(is_block_free(fs, target_block)){
+        mini_log(ERROR, "read_block", "Blocco da leggere non allocato!");
+        return -1;
+    }
+
+    if(offset >= BLOCK_SIZE){
+        mini_log(ERROR, "read_block", "Offset errato");
+        return -1;
+    }
+
+    if(length <= 0 || length > BLOCK_SIZE){
+        mini_log(ERROR, "read_block", "Il numero di byte da leggere supera BLOCK_SIZE oppure è inferiore o uguale a 0");
+        return -1;
+    }
+
+    if(offset + length > BLOCK_SIZE){
+        mini_log(ERROR, "read_block", "Non è possibile leggere il numero di caratteri richiesto a partire dall'offset specificato");
+        return -1;
+    }
+
+    BLOCK* blck = ((BLOCK*)get_fs_block_section(fs)) + target_block;
+    char* read_start = ((char*)blck) + offset;
+
+    memcpy(dst_buffer, read_start, length);
 
     return 0;
 }
@@ -264,6 +314,7 @@ FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_
         fh->first_file_block = first_file_block;
         fh->head_pos = 0;
         fh->m_fs = m_fs;
+        fh->status_flags = 0;
     }
     else{
         mini_log(LOG, "get_or_create_file_handle", "File handle già trovato, non ne verrà allocato uno nuovo per il file");

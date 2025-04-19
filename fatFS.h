@@ -84,7 +84,8 @@ typedef struct BLOCK{
     char block_data[BLOCK_SIZE];
 } BLOCK;
 
-#define FIRST_BLOCK_DATA_SIZE BLOCK_SIZE - sizeof(block_num_t) - sizeof(unsigned int)
+#define FIRST_BLOCK_DATA_START_OFFSET sizeof(DIR_ENTRY_POSITION) 
+#define FIRST_BLOCK_DATA_SIZE BLOCK_SIZE - FIRST_BLOCK_DATA_START_OFFSET
 
 typedef struct FIRST_FILE_BLOCK{
     DIR_ENTRY_POSITION dir_entry_pos;
@@ -97,6 +98,7 @@ typedef struct FILE_HANDLE{
     MOUNTED_FS* m_fs;
     block_num_t first_file_block;
     unsigned int head_pos;
+    int status_flags;
 } FILE_HANDLE;
 
 typedef struct FILE_HANDLE_STACK_ELEM{
@@ -151,7 +153,7 @@ struct MOUNTED_FS{
 };
 
 /* file_name per ora non è utilizzato, viene sempre creato un nuovo file fat.myfat */
-int create_fs_on_file(const char* const file_name, block_num_t n_blocks);
+int create_fs_on_file(const char* file_name, block_num_t n_blocks);
 
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);
 int unmount_fs(MOUNTED_FS* m_fs);
@@ -172,9 +174,6 @@ int erase_file(FILE_HANDLE* file);
 int file_seek(FILE_HANDLE* file, long int offset, int whence);
 // Restituisce la posizione (byte) attuale della testina di lettura nel file
 unsigned int file_tell(FILE_HANDLE* file);
-
-// non è una funzione sicura
-unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block);
 
 /*
     Crea una cartella di nome dir_name nella prima dir_entry disponibile nella cartella di cui curr_dir_block è un blocco (può non essere il primo, la funzione otterrà in automatico il primo blocco)
@@ -198,12 +197,13 @@ int get_directory_name(const FAT_FS* fs, block_num_t dir_block, char* name_buf);
 DIR_ENTRY* get_file_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* file_name_buf, const char* extension_buf);
 DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* dir_name_buf);
 
-// Richieste da completare affinché il progetto sia completo
-//int change_dir(MOUNTED_FS* fs, char* dir_name); // NON RIGUARDA IL FS
+#define GENERIC_FILE_ERROR -1
+#define END_OF_FILE -2
+long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes);
 
-// Le ultime da vedere
+// Richieste da completare affinché il progetto sia completo
+
 //long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
-//long int read(FILE_HANDLE* file, void* dest_buffer, unsigned int n_bytes);
 
 
 #endif /* FAT_FS_H */

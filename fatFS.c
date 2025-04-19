@@ -17,7 +17,7 @@
 
 // Il parametro file_name è inutilizzato, per ora il file avrà sempre nome fat.myfat.
 // Restituisce 0 in caso di successo, -1 altrimenti.
-int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
+int create_fs_on_file(const char* file_name, block_num_t n_blocks){
     if(FILE_ENTRIES_PER_DIR_BLOCK <= 1){
         mini_log(ERROR, "create_fs_on_file", "Dimensione dei blocchi troppo piccola per il funzionamento del File System (FILE_ENTRIES_PER_DIR_BLOCK <= 1)!");
         return -1;
@@ -46,7 +46,7 @@ int create_fs_on_file(const char* const file_name, block_num_t n_blocks){
     FILE* fs_file;
 
     // Nota la modalità di apertura del file! wb+ significa apri in lettura/scrittura un file binario, se esiste elimina il contenuto (o crealo se non esiste)!
-    if((fs_file = fopen("fat.myfat", "wb+")) == NULL){
+    if((fs_file = fopen(file_name, "wb+")) == NULL){
         mini_log(ERROR, "create_fs_on_file", "Impossibile creare un nuovo file, potrebbe già essere aperto da un altro processo.");
         return -1;
     }
@@ -428,34 +428,6 @@ int erase_file(FILE_HANDLE* file){
     delete_file_handle(file);
 
     return 0;
-}
-
-unsigned int get_file_size(const FAT_FS* fs, block_num_t first_file_block){
-    if(fs == NULL){
-        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
-        return 0;
-    }
-
-    if(is_block_valid(fs, first_file_block) == false || is_block_free(fs, first_file_block)){
-        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
-        return 0;
-    }
-
-    // operazione pericolosa 1
-    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*)block_num_to_block_pointer(fs, first_file_block);
-    if(ffb == NULL){
-        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
-        return 0;
-    }
-
-    // operazione pericolosa 2
-    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(fs, ffb->dir_entry_pos);
-    if(de == NULL){
-        mini_log(ERROR, "get_file_size", "Tentativo di ottenere file_size fallito!");
-        return 0;
-    }
-
-    return de->file.file_size;
 }
 
 unsigned int file_tell(FILE_HANDLE* file){
@@ -939,4 +911,150 @@ int get_directory_name(const FAT_FS* fs, block_num_t dir_block, char* name_buf){
     strncpy(name_buf, de->name, MAX_FILENAME_SIZE);
 
     return 0;
+}
+
+long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
+    if(is_file_handle_valid(file) == false){
+        return GENERIC_FILE_ERROR;
+    }
+
+    if(dest_buffer == NULL){
+        return GENERIC_FILE_ERROR;
+    }
+    
+    if(n_bytes == 0){
+        return 0;
+    }
+
+    unsigned int file_size = get_file_size(file->m_fs->fs, file->first_file_block);
+    if(file_size == 0){
+        return 0;
+    }
+
+    if(file->status_flags == END_OF_FILE){
+        return END_OF_FILE;
+    }
+
+    long int read_bytes = 0;
+
+    block_num_t curr_block = file->first_file_block;
+    
+    unsigned int next_op_bytes_to_read;
+
+    if(file->head_pos < FIRST_BLOCK_DATA_SIZE){
+        // se devo iniziare a leggere dal primo blocco
+        
+        if(file->head_pos + n_bytes > FIRST_BLOCK_DATA_SIZE){
+            next_op_bytes_to_read = FIRST_BLOCK_DATA_SIZE - file->head_pos;
+        }
+        else{
+            next_op_bytes_to_read = n_bytes;
+        }
+
+        if(next_op_bytes_to_read + file->head_pos > file_size){
+            next_op_bytes_to_read = file_size - file->head_pos;
+        }
+
+        if(read_block(file->m_fs->fs, file->first_file_block, FIRST_BLOCK_DATA_START_OFFSET + file->head_pos, dest_buffer, next_op_bytes_to_read)){
+            mini_log(ERROR, "read_file", "Errore operazione sui blocchi, lettura del primo blocco del file");
+            return -1;
+        }
+        
+        n_bytes -= next_op_bytes_to_read;
+        file->head_pos += next_op_bytes_to_read;
+        read_bytes += next_op_bytes_to_read;
+    }
+    else{
+        // Devo trovare il blocco in cui si trova la testina (file->head_pos)
+        // So che non si trova nel primo blocco
+
+        // è fondamentale avere come parametro file_size = file->head_pos + 1 (per come è scritta la funzione)
+        unsigned int n_blk = file_size_bytes_to_file_size_blocks(file->head_pos+1, true);
+        if(n_blk == 1 || n_blk == 0){
+            mini_log(ERROR, "read_file", "Rivedi codice!");
+            return -1;
+        }
+
+        n_blk--;
+
+        while(n_blk > 0){
+            curr_block = get_next_block(file->m_fs->fs, curr_block);
+        }
+
+        if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
+            mini_log(ERROR, "read_file", "Non è possibile ottenere il blocco in cui si trova la testina di lettura (prima lettura)");
+            return -1;
+        }
+
+        unsigned int read_offset = file->head_pos;
+        read_offset -= FIRST_BLOCK_DATA_SIZE;
+        read_offset = read_offset % BLOCK_SIZE;
+
+        if(read_offset + n_bytes > BLOCK_SIZE){
+            next_op_bytes_to_read = BLOCK_SIZE - read_offset;
+        }
+        else{
+            next_op_bytes_to_read = n_bytes;
+        }
+
+        if(next_op_bytes_to_read + file->head_pos > file_size){
+            next_op_bytes_to_read = file_size - file->head_pos;
+        }
+
+        if(read_block(file->m_fs->fs, curr_block, read_offset, dest_buffer, next_op_bytes_to_read)){
+            mini_log(ERROR, "read_file", "Errore operazione sui blocchi, caso primo blocco da leggere != first_file_block");
+            return -1;
+        }
+
+        n_bytes -= next_op_bytes_to_read;
+        file->head_pos += next_op_bytes_to_read;
+        read_bytes += next_op_bytes_to_read;
+    }
+
+    if(n_bytes > 0 && file->head_pos < file_size){
+        // qui la logica generale per leggere un blocco (non ci sarà da calcolare offset però, solo la prima lettura potrebbe averlo)
+        curr_block = get_next_block(file->m_fs->fs, curr_block);
+        if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
+            mini_log(ERROR, "read_file", "Non è possibile ottenere il blocco successivo da leggere");
+            return -1;
+        }
+        
+        if(n_bytes > BLOCK_SIZE){
+            next_op_bytes_to_read = BLOCK_SIZE;
+        }
+        else{
+            next_op_bytes_to_read = n_bytes;
+        }
+
+        if(next_op_bytes_to_read + file->head_pos > file_size){
+            next_op_bytes_to_read = file_size - file->head_pos;
+        }
+
+        if(read_file(file, dest_buffer + read_bytes, next_op_bytes_to_read)){
+            mini_log(ERROR, "read_file", "Errore operazione sui blocchi");
+            return -1;
+        }
+
+        n_bytes -= next_op_bytes_to_read;
+        file->head_pos += next_op_bytes_to_read;
+        read_bytes += next_op_bytes_to_read;
+    }
+
+    if(file->head_pos >= file_size){
+        file->status_flags = END_OF_FILE;
+        mini_log(INFO, "read_file", "Raggiunta fine del file");
+    }
+
+    // Solo per verificare che non si siano verificati errori
+    if(n_bytes < 0){
+        mini_log(ERROR, "read_file", "Lettura completata ma risultano essere stati letti più bytes di quanto richiesto?");
+        return -1;
+    }
+
+    if(file->head_pos > file_size){
+        mini_log(ERROR, "read_file", "Lettura completata ma la testina di lettura ha una posizione errata");
+        return -1;
+    }
+
+    return read_bytes;
 }
