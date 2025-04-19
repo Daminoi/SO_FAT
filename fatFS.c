@@ -957,7 +957,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
 
         if(read_block(file->m_fs->fs, file->first_file_block, FIRST_BLOCK_DATA_START_OFFSET + file->head_pos, dest_buffer, next_op_bytes_to_read)){
             mini_log(ERROR, "read_file", "Errore operazione sui blocchi, lettura del primo blocco del file");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
         
         n_bytes -= next_op_bytes_to_read;
@@ -972,18 +972,19 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         unsigned int n_blk = file_size_bytes_to_file_size_blocks(file->head_pos+1, true);
         if(n_blk == 1 || n_blk == 0){
             mini_log(ERROR, "read_file", "Rivedi codice!");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
 
-        n_blk--;
+        --n_blk;
 
         while(n_blk > 0){
             curr_block = get_next_block(file->m_fs->fs, curr_block);
+            --n_blk;
         }
 
         if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
             mini_log(ERROR, "read_file", "Non è possibile ottenere il blocco in cui si trova la testina di lettura (prima lettura)");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
 
         unsigned int read_offset = file->head_pos;
@@ -1003,7 +1004,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
 
         if(read_block(file->m_fs->fs, curr_block, read_offset, dest_buffer, next_op_bytes_to_read)){
             mini_log(ERROR, "read_file", "Errore operazione sui blocchi, caso primo blocco da leggere != first_file_block");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
 
         n_bytes -= next_op_bytes_to_read;
@@ -1016,7 +1017,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         curr_block = get_next_block(file->m_fs->fs, curr_block);
         if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
             mini_log(ERROR, "read_file", "Non è possibile ottenere il blocco successivo da leggere");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
         
         if(n_bytes > BLOCK_SIZE){
@@ -1032,7 +1033,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
 
         if(read_file(file, dest_buffer + read_bytes, next_op_bytes_to_read)){
             mini_log(ERROR, "read_file", "Errore operazione sui blocchi");
-            return -1;
+            return GENERIC_FILE_ERROR;
         }
 
         n_bytes -= next_op_bytes_to_read;
@@ -1048,12 +1049,12 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
     // Solo per verificare che non si siano verificati errori
     if(n_bytes < 0){
         mini_log(ERROR, "read_file", "Lettura completata ma risultano essere stati letti più bytes di quanto richiesto?");
-        return -1;
+        return GENERIC_FILE_ERROR;
     }
 
     if(file->head_pos > file_size){
         mini_log(ERROR, "read_file", "Lettura completata ma la testina di lettura ha una posizione errata");
-        return -1;
+        return GENERIC_FILE_ERROR;
     }
 
     return read_bytes;
