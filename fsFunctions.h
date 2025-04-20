@@ -14,8 +14,8 @@ block_num_t allocate_block(const FAT_FS* fs);
 bool free_block(const FAT_FS* fs, const block_num_t block_to_free);
 
 int read_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* dst_buffer, size_t length);
-// Sovrascrive il contenuto del blocco block_to_write
-int write_to_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* src_buffer, size_t length);
+// Sovrascrive il contenuto del blocco
+int write_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* src_buffer, size_t length);
 
 
 FILE_HANDLE* get_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block);

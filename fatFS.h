@@ -200,10 +200,6 @@ DIR_ENTRY* get_dir_by_name(const FAT_FS* fs, block_num_t curr_dir, const char* d
 #define GENERIC_FILE_ERROR -1
 #define END_OF_FILE -2
 long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes);
-
-// Richieste da completare affinché il progetto sia completo
-
-//long int write(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
-
+long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes);
 
 #endif /* FAT_FS_H */

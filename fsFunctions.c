@@ -128,34 +128,34 @@ bool free_block(const FAT_FS* fs, const block_num_t block_to_free){
     return true;
 }
 
-int write_to_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* src_buffer, size_t length){
+int write_block(const FAT_FS* fs, const block_num_t target_block, unsigned int offset, char* src_buffer, size_t length){
     if(is_not_null_fs(fs) == false){
-        mini_log(ERROR, "write_to_block", "Impossibile operare su un fs nullo o non valido.");
+        mini_log(ERROR, "write_block", "Impossibile operare su un fs nullo o non valido.");
         return -1;
     }
 
     if(is_block_valid(fs, target_block) == false ){
-        mini_log(ERROR, "write_to_block", "Blocco su cui scrivere inesistente!");
+        mini_log(ERROR, "write_block", "Blocco su cui scrivere inesistente!");
         return -1;
     }
 
     if(is_block_free(fs, target_block)){
-        mini_log(ERROR, "write_to_block", "Blocco su cui scrivere non allocato!");
+        mini_log(ERROR, "write_block", "Blocco su cui scrivere non allocato!");
         return -1;
     }
 
     if(offset >= BLOCK_SIZE){
-        mini_log(ERROR, "write_to_block", "Offset errato");
+        mini_log(ERROR, "write_block", "Offset errato");
         return -1;
     }
 
     if(length <= 0 || length > BLOCK_SIZE){
-        mini_log(ERROR, "write_to_block", "Il numero di byte da scrivere supera BLOCK_SIZE oppure è inferiore o uguale a 0");
+        mini_log(ERROR, "write_block", "Il numero di byte da scrivere supera BLOCK_SIZE oppure è inferiore o uguale a 0");
         return -1;
     }
 
     if(offset + length > BLOCK_SIZE){
-        mini_log(ERROR, "write_to_block", "Non è possibile scrivere il numero di caratteri richiesto a partire dall'offset specificato");
+        mini_log(ERROR, "write_block", "Non è possibile scrivere il numero di caratteri richiesto a partire dall'offset specificato");
         return -1;
     }
 
@@ -332,7 +332,7 @@ int extend_file(FILE_HANDLE* file, block_num_t n_blocks_to_allocate){
         return -1;
     }
 
-    if(n_blocks_to_allocate >= get_n_free_blocks(file->m_fs->fs)){
+    if(n_blocks_to_allocate > get_n_free_blocks(file->m_fs->fs)){
         return -1;
     }
 

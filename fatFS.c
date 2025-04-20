@@ -936,9 +936,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
     }
 
     long int read_bytes = 0;
-
     block_num_t curr_block = file->first_file_block;
-    
     unsigned int next_op_bytes_to_read;
 
     if(file->head_pos < FIRST_BLOCK_DATA_SIZE){
@@ -956,7 +954,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         }
 
         if(read_block(file->m_fs->fs, file->first_file_block, FIRST_BLOCK_DATA_START_OFFSET + file->head_pos, dest_buffer, next_op_bytes_to_read)){
-            mini_log(ERROR, "read_file", "Errore operazione sui blocchi, lettura del primo blocco del file");
+            mini_log(ERROR, "read_file", "Errore operazione sui blocchi, lettura del primo blocco del file fallita");
             return GENERIC_FILE_ERROR;
         }
         
@@ -966,15 +964,15 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
     }
     else{
         // Devo trovare il blocco in cui si trova la testina (file->head_pos)
-        // So che non si trova nel primo blocco
-
+        
         // è fondamentale avere come parametro file_size = file->head_pos + 1 (per come è scritta la funzione)
         unsigned int n_blk = file_size_bytes_to_file_size_blocks(file->head_pos+1, true);
         if(n_blk == 1 || n_blk == 0){
             mini_log(ERROR, "read_file", "Rivedi codice!");
             return GENERIC_FILE_ERROR;
         }
-
+        
+        // So che non si trova nel primo blocco
         --n_blk;
 
         while(n_blk > 0){
@@ -1012,8 +1010,8 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         read_bytes += next_op_bytes_to_read;
     }
 
-    if(n_bytes > 0 && file->head_pos < file_size){
-        // qui la logica generale per leggere un blocco (non ci sarà da calcolare offset però, solo la prima lettura potrebbe averlo)
+    while(n_bytes > 0 && file->head_pos < file_size){
+        // qui la logica generale per leggere un blocco (non ci sarà da calcolare offset però, solo la prima lettura [quella sopra scritta] potrebbe averlo)
         curr_block = get_next_block(file->m_fs->fs, curr_block);
         if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
             mini_log(ERROR, "read_file", "Non è possibile ottenere il blocco successivo da leggere");
@@ -1058,4 +1056,189 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
     }
 
     return read_bytes;
+}
+
+long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
+    // Verifiche prima dell'operazione
+
+    if(is_file_handle_valid(file) == false){
+        return GENERIC_FILE_ERROR;
+    }
+
+    if(n_bytes == 0){
+        return 0;
+    }
+
+    if(from_buffer == NULL){
+        return GENERIC_FILE_ERROR;
+    }
+
+    // Verifico se sia necessario allocare ulteriori blocchi per completare la scrittura
+    unsigned int file_size = get_file_size(file->m_fs->fs, file->first_file_block);
+
+    if(file->status_flags == END_OF_FILE && file->head_pos != file_size){
+        mini_log(ERROR, "write_file", "Il file è corrotto! status = END_OF_FILE ma head_pos != file_size");
+        return GENERIC_FILE_ERROR;
+    }
+
+    block_num_t already_allocated_blocks = get_number_following_allocated_blocks(file->m_fs->fs, file->first_file_block);
+    if(already_allocated_blocks < 0){
+        mini_log(ERROR, "write_file", "Errore nel calcolo dello spazio già allocato per il file");
+        return GENERIC_FILE_ERROR;
+    }
+    
+    unsigned int already_allocated_bytes = (already_allocated_blocks * BLOCK_SIZE) + FIRST_BLOCK_DATA_SIZE;
+    // Vale already_allocated_bytes >= file_size
+
+    if(file->head_pos + n_bytes > already_allocated_bytes){
+        // conto quanti blocchi sia necessario allocare e verifico che siano disponibili
+
+        // RICORDA! divisione intera, 13 / 4 = 3, se è presente il resto devo allocare un blocco in più
+        unsigned int blocks_to_allocate = (file->head_pos + n_bytes) / BLOCK_SIZE;
+        if( (file->head_pos + n_bytes) % BLOCK_SIZE != 0 ){
+            ++blocks_to_allocate;
+        }
+
+        if(blocks_to_allocate > get_n_free_blocks(file->m_fs->fs)){
+            mini_log(WARNING, "write_file", "Blocchi insufficienti per eseguire la scrittura su file");
+            return GENERIC_FILE_ERROR;
+        }
+    
+        // Alloco i blocchi necessari
+        extend_file(file, blocks_to_allocate);
+    }
+
+    block_num_t curr_block = file->first_file_block;
+    long int written_bytes = 0;
+    unsigned int next_op_bytes_to_write;
+
+    // Devo distinguere il caso in cui la testina si trovi su uno dei primi FIRST_BLOCK_DATA bytes.
+    if(file->head_pos < FIRST_BLOCK_DATA_SIZE){
+        if(file->head_pos + n_bytes > FIRST_BLOCK_DATA_SIZE){
+            next_op_bytes_to_write = FIRST_BLOCK_DATA_SIZE - file->head_pos;
+        }
+        else{
+            next_op_bytes_to_write = n_bytes;
+        }
+
+        if(next_op_bytes_to_write + file->head_pos > file_size){
+            file_size = next_op_bytes_to_write + file->head_pos;
+        }
+
+        if(write_block(file->m_fs->fs, file->first_file_block, FIRST_BLOCK_DATA_START_OFFSET + file->head_pos, from_buffer, next_op_bytes_to_write)){
+            mini_log(ERROR, "write_file", "Errore operazione sui blocchi, scrittura del primo blocco del file fallita");
+            return GENERIC_FILE_ERROR;
+        }
+        
+        n_bytes -= next_op_bytes_to_write;
+        file->head_pos += next_op_bytes_to_write;
+        written_bytes += next_op_bytes_to_write;
+    }
+    else{
+        // Devo trovare il blocco in cui si trova la testina (file->head_pos)
+        
+        unsigned int n_blk;
+
+        if(file->status_flags == END_OF_FILE){
+            // in questo caso vale file->head_pos == file_size
+            n_blk = file_size_bytes_to_file_size_blocks(file_size, true);   
+        }
+        else{
+            // è fondamentale avere come parametro file_size = file->head_pos + 1 in questo caso (per come è scritta la funzione)
+            n_blk = file_size_bytes_to_file_size_blocks(file->head_pos+1, true);
+        }
+
+        if(n_blk == 1 || n_blk == 0){
+            mini_log(ERROR, "write_file", "Rivedi codice!");
+            return GENERIC_FILE_ERROR;
+        }
+        
+        // So che non si trova nel primo blocco
+        --n_blk;
+
+        while(n_blk > 0){
+            curr_block = get_next_block(file->m_fs->fs, curr_block);
+            --n_blk;
+        }
+
+        if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
+            mini_log(ERROR, "write_file", "Non è possibile ottenere il blocco in cui si trova la testina di scrittura (prima scrittura)");
+            return GENERIC_FILE_ERROR;
+        }
+
+        unsigned int read_offset = file->head_pos;
+        read_offset -= FIRST_BLOCK_DATA_SIZE;
+        read_offset = read_offset % BLOCK_SIZE;
+
+        if(read_offset + n_bytes > BLOCK_SIZE){
+            next_op_bytes_to_write = BLOCK_SIZE - read_offset;
+        }
+        else{
+            next_op_bytes_to_write = n_bytes;
+        }
+
+        if(next_op_bytes_to_write + file->head_pos > file_size){
+            file_size = next_op_bytes_to_write + file->head_pos;
+        }
+
+        if(write_block(file->m_fs->fs, curr_block, read_offset, from_buffer, next_op_bytes_to_write)){
+            mini_log(ERROR, "write_file", "Errore operazione sui blocchi, caso primo blocco da scrivere != first_file_block");
+            return GENERIC_FILE_ERROR;
+        }
+
+        n_bytes -= next_op_bytes_to_write;
+        file->head_pos += next_op_bytes_to_write;
+        written_bytes += next_op_bytes_to_write;
+    }
+
+    // Scrittura "normale" sui blocchi successivi, fino al completamento dell'operazione
+
+    while(n_bytes > 0){
+        curr_block = get_next_block(file->m_fs->fs, curr_block);
+        if(is_block_valid(file->m_fs->fs, curr_block) == false || is_block_free(file->m_fs->fs, curr_block)){
+            mini_log(ERROR, "write_file", "Non è possibile ottenere il blocco successivo su cui scrivere");
+            return GENERIC_FILE_ERROR;
+        }
+        
+        if(n_bytes > BLOCK_SIZE){
+            next_op_bytes_to_write = BLOCK_SIZE;
+        }
+        else{
+            next_op_bytes_to_write = n_bytes;
+        }
+
+        if(next_op_bytes_to_write + file->head_pos > file_size){
+            file_size = next_op_bytes_to_write + file->head_pos;
+        }
+
+        if(read_file(file, from_buffer + written_bytes, next_op_bytes_to_write)){
+            mini_log(ERROR, "write_file", "Errore operazione sui blocchi");
+            return GENERIC_FILE_ERROR;
+        }
+
+        n_bytes -= next_op_bytes_to_write;
+        file->head_pos += next_op_bytes_to_write;
+        written_bytes += next_op_bytes_to_write;
+    }
+
+    if(file->head_pos >= file_size){
+        file->status_flags = END_OF_FILE;
+        mini_log(INFO, "write_file", "Raggiunta fine del file");
+    }
+    else{
+        file->status_flags = 0;
+    }
+
+    // Stesse verifiche che vengono effettuate alla fine di una lettura
+    if(n_bytes < 0){
+        mini_log(ERROR, "write_file", "Scrittura completata ma risultano essere stati scritti più bytes di quanto richiesto?");
+        return GENERIC_FILE_ERROR;
+    }
+
+    if(file->head_pos > file_size){
+        mini_log(ERROR, "write_file", "Scrittura completata ma la testina di scrittura ha una posizione errata");
+        return GENERIC_FILE_ERROR;
+    }
+
+    return written_bytes;
 }
