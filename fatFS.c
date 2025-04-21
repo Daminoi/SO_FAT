@@ -486,6 +486,7 @@ int file_seek(FILE_HANDLE* file, long int offset, int whence){
     }
     else{
         file->head_pos = simulated_file_pos;
+        file->status_flags = 0;
         return 0;
     }
 }
@@ -1123,6 +1124,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
 
         if(next_op_bytes_to_write + file->head_pos > file_size){
             file_size = next_op_bytes_to_write + file->head_pos;
+            set_file_size(file, file_size);
         }
 
         if(write_block(file->m_fs->fs, file->first_file_block, FIRST_BLOCK_DATA_START_OFFSET + file->head_pos, from_buffer, next_op_bytes_to_write)){
@@ -1179,6 +1181,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
 
         if(next_op_bytes_to_write + file->head_pos > file_size){
             file_size = next_op_bytes_to_write + file->head_pos;
+            set_file_size(file, file_size);
         }
 
         if(write_block(file->m_fs->fs, curr_block, read_offset, from_buffer, next_op_bytes_to_write)){
@@ -1209,6 +1212,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
 
         if(next_op_bytes_to_write + file->head_pos > file_size){
             file_size = next_op_bytes_to_write + file->head_pos;
+            set_file_size(file, file_size);
         }
 
         if(read_file(file, from_buffer + written_bytes, next_op_bytes_to_write)){

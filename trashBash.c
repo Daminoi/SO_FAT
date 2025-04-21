@@ -393,7 +393,7 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
 }
 
 void tb_print_version_info(){
-    printf("TrashBash (v: %s)\n\n", __TIMESTAMP__);
+    printf("TrashBash (ver: %s)\n\n", __TIMESTAMP__);
     return;
 }
 

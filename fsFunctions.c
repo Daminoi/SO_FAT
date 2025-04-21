@@ -288,6 +288,7 @@ FILE_HANDLE* get_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_block){
     }
 
     // Non trovato
+    mini_log(LOG, "get_file_handle", "File handle non presente");
     return NULL;
 }
 
@@ -306,7 +307,11 @@ FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_
         mini_log(LOG, "get_or_create_file_handle", "File handle non trovato nella pila, lo creo per questo file");
 
         fh = (FILE_HANDLE*) malloc(sizeof(FILE_HANDLE));
-        if(fh == NULL){
+        FH_STACK_ELEM* fhse = (FH_STACK_ELEM*) malloc(sizeof(FH_STACK_ELEM));
+
+        if(fh == NULL || fhse == NULL){
+            free(fh);
+            free(fhse);
             mini_log(ERROR, "get_or_create_file_handle", "RAM insufficiente per allocare un nuovo file handle");
             return NULL;
         }
@@ -315,6 +320,22 @@ FILE_HANDLE* get_or_create_file_handle(MOUNTED_FS* m_fs, block_num_t first_file_
         fh->head_pos = 0;
         fh->m_fs = m_fs;
         fh->status_flags = 0;
+
+        fhse->file_handle = fh;
+        fhse->next = NULL;
+
+        FH_STACK_ELEM* curr = m_fs->open_file_handles;
+        if(curr == NULL){
+            m_fs->open_file_handles = fhse;
+        }
+        else{
+            // Nella lista di file_handle ce ne sono già altri, quindi l'ultimo creato lo aggiungo in coda
+            while(curr->next != NULL){
+                curr = curr->next;
+            }
+
+            curr->next = fhse;
+        }
     }
     else{
         mini_log(LOG, "get_or_create_file_handle", "File handle già trovato, non ne verrà allocato uno nuovo per il file");
@@ -470,5 +491,27 @@ int update_dir_elem_removed(const FAT_FS* fs, block_num_t dir_block){
         --(de_to_update->file.n_elems);
     }
 
+    return 0;
+}
+
+int set_file_size(FILE_HANDLE *file, unsigned int new_size){
+    if(is_file_handle_valid(file) == false){
+        return -1;
+    }
+
+    FIRST_FILE_BLOCK* ffb = (FIRST_FILE_BLOCK*)block_num_to_block_pointer(file->m_fs->fs, file->first_file_block);
+    if(ffb == NULL){
+        mini_log(ERROR, "set_file_size", "Impossibile ottenere il primo blocco");
+        return -1;
+    }
+
+    DIR_ENTRY* de = dir_entry_pos_to_dir_entry_pointer(file->m_fs->fs, ffb->dir_entry_pos);
+    if(de == NULL){
+        mini_log(ERROR, "set_file_size", "Tentativo di modificare file_size fallito!");
+        return -1;
+    }
+
+    mini_log(LOG, "set_file_size", "Cambiata dimensione del file");
+    de->file.file_size = new_size;
     return 0;
 }
