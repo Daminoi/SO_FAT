@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "common.h"
 #include "fsFunctions.h"
 #include "fatFS.h"
 #include "fsUtils.h"
@@ -10,11 +11,15 @@
 void clear_block(const FAT_FS* fs, const block_num_t block_to_clear){
     if(is_not_null_fs(fs) && is_block_valid(fs, block_to_clear)){
         memset(((get_fs_block_section(fs) + block_to_clear)), 0, BLOCK_SIZE);
+        #ifdef DEBUG
         //printf("EXTRA (clear_block) Azzerato blocco %d\n", block_to_clear);
+        #endif
         //mini_log(LOG, "clear_block", "Blocco azzerato");
     }
     else{
+        #ifdef DEBUG
         //printf("EXTRA (clear_block) FALLITA pulizia blocco %d\n", block_to_clear);
+        #endif
         mini_log(ERROR, "clear_block", "Impossibile azzerare un blocco");
     }
 }
@@ -365,7 +370,9 @@ int extend_file(FILE_HANDLE* file, block_num_t n_blocks_to_allocate){
         return -1;
     }
 
+    #ifdef DEBUG
     printf("EXTRA (extend_file): l'ultimo blocco del file (prima dell'estensione) è il n° %d\n", blk);
+    #endif
 
     // Alloco n_blocks_to_allocate, uno dopo l'altro, appendendoli all'ultimo blocco precedentemente allocato
     // Non dovrebbero verificarsi errori di allocazione in questa fase viste le verifiche precedenti sullo spazio libero disponibile.

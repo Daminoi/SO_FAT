@@ -152,7 +152,6 @@ struct MOUNTED_FS{
     FH_STACK_ELEM* open_file_handles;
 };
 
-/* file_name per ora non è utilizzato, viene sempre creato un nuovo file fat.myfat */
 int create_fs_on_file(const char* file_name, block_num_t n_blocks);
 
 MOUNTED_FS* mount_fs_from_file(const char* const file_name);

@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "common.h"
 #include "fsUtils.h"
 #include "fatFS.h"
 #include "minilogger.h"
@@ -140,7 +141,9 @@ block_num_t get_parent_dir_block(const FAT_FS* fs, block_num_t curr_dir_block){
     else{
         // QUESTO CASO NON DOVREBBE VERIFICARSI A MENO CHE NON VI SIANO ERRORI DI PROGRAMMAZIONE
         mini_log(ERROR, "get_parent_dir_block", "Il tipo di blocco della cartella è sconosciuto");
+        #ifdef DEBUG
         printf("Tipo di blocco della cartella trovato: %d", dir_info->is_dir);
+        #endif
         return INVALID_BLOCK;
     }
 }
@@ -183,7 +186,9 @@ DIR_ENTRY_POSITION get_available_dir_entry_helper(const FAT_FS* fs, block_num_t 
             mini_log(LOG, "get_available_dir_entry", "Trovata file entry libera nella cartella");
             de_p.block = curr_dir_block;
             de_p.offset = i;
+            #ifdef DEBUG
             printf("EXTRA (get_available_dir_entry_helper) trovata dir_entry libera con block=%d offset=%d\n", de_p.block, de_p.offset);
+            #endif
             return de_p;
         }
     }
@@ -300,8 +305,10 @@ BLOCK* block_num_to_block_pointer(const FAT_FS* fs, block_num_t block_num){
         return false;
     }
 
+    #ifdef DEBUG
     // printf("EXTRA (block_num_to_block_pointer) blocco richiesto (%d) a indirizzo %p\n", block_num, get_fs_block_section(fs) + block_num);
-    
+    #endif
+
     return (get_fs_block_section(fs) + block_num);
 }
 
@@ -320,7 +327,9 @@ block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t 
 
     block_num_t blk = block;
 
+    #ifdef DEBUG
     printf("EXTRA (get_number_following_blocks) blocco di partenza %d\n", blk);
+    #endif
     do{
         blk = get_next_block(fs, blk);
 
@@ -332,7 +341,9 @@ block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t 
         if(blk != LAST_BLOCK){
             ++n_following_blocks;
 
+            #ifdef DEBUG
             printf("EXTRA (get_number_following_blocks) segue il blocco %d\n", blk);
+            #endif
 
             if(n_following_blocks > max_n_following_blocks){
                 mini_log(ERROR, "get_number_following_allocated_blocks", "Probabile LOOP infinito nel conteggio dei blocchi, fs corrotto o errori interni al codice!");
@@ -402,7 +413,9 @@ block_num_t get_first_dir_block_from_curr_dir_block(const FAT_FS* fs, block_num_
         return de->internal_dir_ref.ref.block;
     }
     else{
+        #ifdef DEBUG
         printf("EXTRA (get_first_dir_block_from_curr_dir_block) de->is_dir ha un valore errato, vale %d\n", de->is_dir);
+        #endif
         mini_log(ERROR, "get_first_dir_block_from_curr_dir_block", "Impossibile procedere, probabilmente è stato passato un blocco che non appartiene a una cartella o il fs è corrotto");
         return INVALID_BLOCK;
     }

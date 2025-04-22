@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "common.h"
 #include "fatFS.h"
 #include "fsUtils.h"
 #include "fsFunctions.h"
@@ -150,7 +151,9 @@ int create_fs_on_file(const char* file_name, block_num_t n_blocks){
 
     if(munmap(mmapped_fs, file_size) == -1){
         mini_log(WARNING, "create_fs_on_file", "munmap fallita.");
+        #ifdef DEBUG
         perror("");
+        #endif
         fclose(fs_file);
         return -1;
     }
@@ -195,7 +198,9 @@ MOUNTED_FS* mount_fs_from_file(const char* const file_name){
     mmapped_fs = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fileno(file_with_fs), 0);
     if(mmapped_fs == MAP_FAILED){
         mini_log(ERROR, "mount_fs_from_file", "Impossibile eseguire la mappatura del file su RAM?");
+        #ifdef DEBUG
         perror("");
+        #endif
         fclose(file_with_fs);
         return NULL;
     }
@@ -288,7 +293,9 @@ int unmount_fs(MOUNTED_FS* m_fs){
     // Passo 2: Esegui munmap del fs
     if(munmap(m_fs->fs->start_location, fs_size)){
         mini_log(ERROR, "unmount_fs", "Munmap fallita");
+        #ifdef DEBUG
         perror("");
+        #endif
 
         free(m_fs->fs);
         free(m_fs);
@@ -1010,7 +1017,9 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         file->head_pos += next_op_bytes_to_read;
         read_bytes += next_op_bytes_to_read;
     }
+    #ifdef DEBUG
     printf("EXTRA (read_file): Letti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_read, read_bytes);
+    #endif
 
     while(n_bytes > 0 && file->head_pos < file_size){
         // qui la logica generale per leggere un blocco (non ci sarà da calcolare offset però, solo la prima lettura [quella sopra scritta] potrebbe averlo)
@@ -1039,7 +1048,9 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         n_bytes -= next_op_bytes_to_read;
         file->head_pos += next_op_bytes_to_read;
         read_bytes += next_op_bytes_to_read;
+        #ifdef DEBUG
         printf("EXTRA (read_file): Letti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_read, read_bytes);
+        #endif
     }
 
     if(file->head_pos >= file_size){
@@ -1108,9 +1119,13 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         }
     
         // Alloco i blocchi necessari
+        #ifdef DEBUG
         printf("EXTRA (write_file): estendo il file allocando %u nuovi blocchi\n", blocks_to_allocate);
+        #endif
         extend_file(file, blocks_to_allocate);
+        #ifdef DEBUG
         printf("EXTRA (write_file): Ora il file è composto da %d blocchi\n", get_number_following_allocated_blocks(file->m_fs->fs, file->first_file_block)+1);
+        #endif
     }
 
     block_num_t curr_block = file->first_file_block;
@@ -1197,7 +1212,9 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         file->head_pos += next_op_bytes_to_write;
         written_bytes += next_op_bytes_to_write;
     }
+    #ifdef DEBUG
     printf("EXTRA (write_file): Scritti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_write, written_bytes);
+    #endif
 
     // Scrittura "normale" sui blocchi successivi, fino al completamento dell'operazione
 
@@ -1228,7 +1245,9 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         n_bytes -= next_op_bytes_to_write;
         file->head_pos += next_op_bytes_to_write;
         written_bytes += next_op_bytes_to_write;
+        #ifdef DEBUG
         printf("EXTRA (write_file): Scritti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_write, written_bytes);
+        #endif
     }
 
     if(file->head_pos >= file_size){
