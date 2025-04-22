@@ -42,6 +42,11 @@
 #define TB_CLS                          13
 #define TB_CLS_STRING                   "clear"
 
+#define TB_SAVE_FILE_TO_FS              14
+#define TB_SAVE_FILE_TO_FS_STRING       "sftf"
+#define TB_EXPORT_FILE_FROM_FS          15
+#define TB_EXPORT_FILE_FROM_FS_STRING   "efff"
+
 #define DELIMS " \t"
 
 #define MAX_PATH_LENGTH 64
@@ -68,7 +73,6 @@ int tb_print_prompt(TRASHBASH_PATH* path);
 int tb_list(TRASHBASH_PATH* path);
 int tb_tree(TRASHBASH_PATH* path);
 
-
 int tb_change_dir(TRASHBASH_PATH* path, char* goto_dir_name);
 
 int tb_create_file(TRASHBASH_PATH* path, char* file_name_buffer, char* file_extension_buffer, FILE_HANDLE** new_file);
@@ -76,5 +80,7 @@ int tb_create_dir(TRASHBASH_PATH* path, char* dir_name_buffer, block_num_t* new_
 
 int tb_delete_file(TRASHBASH_PATH* path, char* file_name_buffer, char* file_extension_buffer);
 int tb_delete_dir(TRASHBASH_PATH* path, char* dir_name_buffer);
+
+int tb_save_file_to_fs(TRASHBASH_PATH* path, char* file_content_buffer, unsigned int file_content_size, char* file_name_buffer, char* file_extension_buffer);
 
 #endif /* TRASHBASH_H */

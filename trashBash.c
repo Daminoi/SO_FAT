@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include "fatFS.h"
 #include "trashBash.h"
@@ -365,6 +367,12 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     else if(strcmp(cmd_str, TB_DELETE_DIR_STRING) == 0){
         cmd = TB_DELETE_DIR;
     }
+    else if(strcmp(cmd_str, TB_SAVE_FILE_TO_FS_STRING) == 0){
+        cmd = TB_SAVE_FILE_TO_FS;
+    }
+    else if(strcmp(cmd_str, TB_EXPORT_FILE_FROM_FS_STRING) == 0){
+        cmd = TB_EXPORT_FILE_FROM_FS;
+    }
     else{
         return TB_UNKNOWN_COMMAND;
     }
@@ -415,6 +423,9 @@ void print_help(){
     printf("> %s [nome_file_da_cancellare]      : elimina il file di nome 'nome_file_da_cancellare' presente nella cartella attuale\n", TB_DELETE_FILE_STRING);
     printf("> %s [nome_nuova_cartella]          : crea una nuova cartella di nome 'nome_nuova_cartella' nella cartella attuale, non deve essere già presente una cartella con quel nome\n", TB_CREATE_DIR_STRING);
     printf("> %s [nome_cartella_da_cancellare]  : elimina la cartella di nome 'nome_cartella_da_cancellare' presente nella cartella attuale\n", TB_DELETE_DIR_STRING);
+
+    printf("> %s [nome_file_su_computer] [nome_file_su_questo_FAT_FS]  : copia il file [nome_file_su_computer] sul fs del computer nel file system montato\n", TB_SAVE_FILE_TO_FS_STRING);
+    printf("> %s [nome_file_da_esportare]  : copia questo file presente sul fs montato nel fs del computer\n", TB_EXPORT_FILE_FROM_FS_STRING);
     
     printf("\n");
     return;
@@ -501,6 +512,20 @@ bool fs_mounted(TRASHBASH_PATH* path){
     }
     
     return true;
+}
+
+int tb_save_file_to_fs(TRASHBASH_PATH* path, char* file_content_buffer, unsigned int file_content_size, char* file_name_buffer, char* file_extension_buffer){
+    FILE_HANDLE* file_on_fs;
+    
+    if(tb_create_file(path, file_name_buffer, file_extension_buffer, &file_on_fs)){
+        return -1;
+    }
+
+    if(write_file(file_on_fs, file_content_buffer, file_content_size) == GENERIC_FILE_ERROR){
+        return -1;
+    }
+
+    return 0;
 }
 
 void trash_bash(){
@@ -758,7 +783,123 @@ void trash_bash(){
                 break;
             }
             break;
-        
+        case TB_SAVE_FILE_TO_FS:
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                printf("Nessun fs è stato montato\n");
+                error = -1;
+                break;
+            }
+
+            if(extract_file_name_and_extension(second_param, file_name, file_extension)){
+                printf("Non è un nome valido per un file (per il mio fs FS_FAT)\n");
+                error = -1;
+                break;
+            }
+
+            // Apro il file (il cui nome è indicato dal primo parametro) presente sul fs vero del computer
+            FILE* real_file;
+
+            if((real_file = fopen(file_name, "rb")) == NULL){
+                printf("Impossibile leggere il file locale %s dal computer da salvare sul fs\n", first_param);
+                error = -1;
+                break;
+            }
+
+            // Ottengo la dimensione del file
+            struct stat file_stats;
+            if(fstat(fileno(real_file), &file_stats)){
+                printf("Impossibile ottenere la dimensione del file da leggere e salvare\n");
+                fclose(real_file);
+                error = -1;
+                break;
+            }
+            unsigned long file_size = file_stats.st_size;
+
+            // Copio il contenuto del file in un buffer
+            char* file_content_buffer = (char*) malloc(file_size+1);
+            if(file_content_buffer == NULL){
+                printf("Impossibile allocare il buffer su cui copiare il contenuto del file\n");
+                fclose(real_file);
+                error = -1;
+                break;
+            }
+
+            fread(file_content_buffer, file_size, file_size, real_file);
+            fclose(real_file);
+
+            // Copio il contenuto del buffer nel nuovo file nel mio fs
+            if(tb_save_file_to_fs(&path, file_content_buffer, file_size, file_name, file_extension)){
+                printf("Creazione e salvataggio del contenuto del file locale %s sul file %s.%s del FS_FAT fallita\n", first_param, file_name, file_extension);
+                free(file_content_buffer);
+                error = -1;
+                break;
+            }
+
+            free(file_content_buffer);
+            break;
+        case TB_EXPORT_FILE_FROM_FS:
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                printf("Nessun fs è stato montato\n");
+                error = -1;
+                break;
+            }
+
+            if(extract_file_name_and_extension(first_param, file_name, file_extension)){
+                printf("Non è un nome valido per un file\n");
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            // Ottengo la dimensione del file, creo un file sul fs vero del computer
+            DIR_ENTRY* de = get_file_by_name(path.m_fs->fs, path.path[path.depth], file_name, file_extension);
+            if(de == NULL){
+                printf("File non trovato\n");
+                error = -1;
+                break;
+            }
+            
+            FILE_HANDLE* my_file = get_file_handle(path.m_fs, de->file.start_block);
+            if(my_file == NULL){
+                printf("Impossibile ottenere il file\n");
+                error = -1;
+                break;
+            }
+
+            unsigned int my_file_size = get_file_size(path.m_fs->fs, de->file.start_block);
+            
+            FILE* new_real_file;
+
+            if((new_real_file = fopen(file_name, "wb")) == NULL){
+                printf("Impossibile creare un nuovo file %s.%s sul fs del computer\n", file_name, file_extension);
+                error = -1;
+                break;
+            }
+
+            // Creo un buffer, vi copio il contenuto del file
+            char* temp_buffer = (char*) malloc(my_file_size);
+            if(temp_buffer == NULL){
+                fclose(new_real_file);
+                printf("Memoria insufficiente per creare un buffer temporaneo su cui salvare il file\n");
+                error = -1;
+                break;
+            }
+
+            file_seek(my_file, 0, FILE_SEEK_START);
+
+            if(read_file(my_file, temp_buffer, my_file_size) == GENERIC_FILE_ERROR){
+                free(temp_buffer);
+                fclose(new_real_file);
+                error = -1;
+                break;
+            }
+
+            // Copio il contenuto del buffer sul file nel computer
+            fwrite(temp_buffer, my_file_size, my_file_size, new_real_file);
+            break;
+
         case TB_UNKNOWN_COMMAND:
             printf("Comando sconosciuto, usa 'help' per vedere la lista di comandi\n");
             break;
