@@ -359,11 +359,13 @@ int extend_file(FILE_HANDLE* file, block_num_t n_blocks_to_allocate){
 
     // Raggiungo l'ultimo blocco già allocato del file
 
-    block_num_t blk = get_last_block_file_or_dir(file->m_fs->fs, file->head_pos);
+    block_num_t blk = get_last_block_file_or_dir(file->m_fs->fs, file->first_file_block);
     if(blk == INVALID_BLOCK){
         mini_log(ERROR, "extend_file", "Impossibile raggiungere l'ultimo blocco del file");
         return -1;
     }
+
+    printf("EXTRA (extend_file): l'ultimo blocco del file (prima dell'estensione) è il n° %d\n", blk);
 
     // Alloco n_blocks_to_allocate, uno dopo l'altro, appendendoli all'ultimo blocco precedentemente allocato
     // Non dovrebbero verificarsi errori di allocazione in questa fase viste le verifiche precedenti sullo spazio libero disponibile.
@@ -377,7 +379,7 @@ int extend_file(FILE_HANDLE* file, block_num_t n_blocks_to_allocate){
         blk = new_block;
     }
 
-    mini_log(LOG, "extend_file", "File esteso con successo, blocchi(blocco) aggiunti in coda");
+    mini_log(LOG, "extend_file", "File esteso con successo, blocchi aggiunti in coda");
     return 0;
 }
 

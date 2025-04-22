@@ -320,8 +320,9 @@ block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t 
 
     block_num_t blk = block;
 
+    printf("EXTRA (get_number_following_blocks) blocco di partenza %d\n", blk);
     do{
-        blk = get_next_block(fs, block);
+        blk = get_next_block(fs, blk);
 
         if(blk == INVALID_BLOCK){
             mini_log(ERROR, "get_number_following_allocated_blocks", "Errore interno al fs!");
@@ -331,12 +332,13 @@ block_num_t get_number_following_allocated_blocks(const FAT_FS* fs, block_num_t 
         if(blk != LAST_BLOCK){
             ++n_following_blocks;
 
+            printf("EXTRA (get_number_following_blocks) segue il blocco %d\n", blk);
+
             if(n_following_blocks > max_n_following_blocks){
                 mini_log(ERROR, "get_number_following_allocated_blocks", "Probabile LOOP infinito nel conteggio dei blocchi, fs corrotto o errori interni al codice!");
                 return INVALID_BLOCK;
             }
         }
-
     }while(blk != LAST_BLOCK);
 
     return n_following_blocks;

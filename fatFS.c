@@ -1010,6 +1010,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         file->head_pos += next_op_bytes_to_read;
         read_bytes += next_op_bytes_to_read;
     }
+    printf("EXTRA (read_file): Letti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_read, read_bytes);
 
     while(n_bytes > 0 && file->head_pos < file_size){
         // qui la logica generale per leggere un blocco (non ci sarà da calcolare offset però, solo la prima lettura [quella sopra scritta] potrebbe averlo)
@@ -1030,7 +1031,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
             next_op_bytes_to_read = file_size - file->head_pos;
         }
 
-        if(read_file(file, dest_buffer + read_bytes, next_op_bytes_to_read)){
+        if(read_block(file->m_fs->fs, curr_block, 0, dest_buffer + read_bytes, next_op_bytes_to_read)){
             mini_log(ERROR, "read_file", "Errore operazione sui blocchi");
             return GENERIC_FILE_ERROR;
         }
@@ -1038,6 +1039,7 @@ long int read_file(FILE_HANDLE* file, char* dest_buffer, unsigned int n_bytes){
         n_bytes -= next_op_bytes_to_read;
         file->head_pos += next_op_bytes_to_read;
         read_bytes += next_op_bytes_to_read;
+        printf("EXTRA (read_file): Letti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_read, read_bytes);
     }
 
     if(file->head_pos >= file_size){
@@ -1106,7 +1108,9 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         }
     
         // Alloco i blocchi necessari
+        printf("EXTRA (write_file): estendo il file allocando %u nuovi blocchi\n", blocks_to_allocate);
         extend_file(file, blocks_to_allocate);
+        printf("EXTRA (write_file): Ora il file è composto da %d blocchi\n", get_number_following_allocated_blocks(file->m_fs->fs, file->first_file_block)+1);
     }
 
     block_num_t curr_block = file->first_file_block;
@@ -1193,6 +1197,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         file->head_pos += next_op_bytes_to_write;
         written_bytes += next_op_bytes_to_write;
     }
+    printf("EXTRA (write_file): Scritti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_write, written_bytes);
 
     // Scrittura "normale" sui blocchi successivi, fino al completamento dell'operazione
 
@@ -1215,7 +1220,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
             set_file_size(file, file_size);
         }
 
-        if(read_file(file, from_buffer + written_bytes, next_op_bytes_to_write)){
+        if(write_block(file->m_fs->fs, curr_block, 0, from_buffer + written_bytes, next_op_bytes_to_write)){
             mini_log(ERROR, "write_file", "Errore operazione sui blocchi");
             return GENERIC_FILE_ERROR;
         }
@@ -1223,6 +1228,7 @@ long int write_file(FILE_HANDLE* file, void* from_buffer, unsigned int n_bytes){
         n_bytes -= next_op_bytes_to_write;
         file->head_pos += next_op_bytes_to_write;
         written_bytes += next_op_bytes_to_write;
+        printf("EXTRA (write_file): Scritti %u bytes, complessivamente %ld bytes\n", next_op_bytes_to_write, written_bytes);
     }
 
     if(file->head_pos >= file_size){
