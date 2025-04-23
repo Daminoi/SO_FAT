@@ -791,7 +791,7 @@ void trash_bash(){
                 break;
             }
 
-            if(extract_file_name_and_extension(second_param, file_name, file_extension)){
+            if(strnlen(second_param, 40) == 0 || extract_file_name_and_extension(second_param, file_name, file_extension)){
                 printf("Non è un nome valido per un file (per il mio fs FS_FAT)\n");
                 error = -1;
                 break;
@@ -800,8 +800,9 @@ void trash_bash(){
             // Apro il file (il cui nome è indicato dal primo parametro) presente sul fs vero del computer
             FILE* real_file;
 
-            if((real_file = fopen(file_name, "rb")) == NULL){
+            if((real_file = fopen(first_param, "rb")) == NULL){
                 printf("Impossibile leggere il file locale %s dal computer da salvare sul fs\n", first_param);
+                perror("Errore verificato:");
                 error = -1;
                 break;
             }
@@ -861,7 +862,7 @@ void trash_bash(){
                 break;
             }
             
-            FILE_HANDLE* my_file = get_file_handle(path.m_fs, de->file.start_block);
+            FILE_HANDLE* my_file = get_or_create_file_handle(path.m_fs, de->file.start_block);
             if(my_file == NULL){
                 printf("Impossibile ottenere il file\n");
                 error = -1;
@@ -870,10 +871,18 @@ void trash_bash(){
 
             unsigned int my_file_size = get_file_size(path.m_fs->fs, de->file.start_block);
             
-            FILE* new_real_file;
+            char complete_name[31];
+            memset(complete_name, 0, 31);
+            char ext[4];
+            strncpy(ext, file_extension, 3);
+            ext[3] = '\0';
 
-            if((new_real_file = fopen(file_name, "wb")) == NULL){
-                printf("Impossibile creare un nuovo file %s.%s sul fs del computer\n", file_name, file_extension);
+            snprintf(complete_name, 31, "%s.%s", file_name, ext);
+            printf("Il file salvato sul computer si chiamerà %s.%s\n", file_name, ext);
+
+            FILE* new_real_file = fopen(complete_name, "wb");
+            if(new_real_file == NULL){
+                printf("Impossibile creare un nuovo file %s.%4s sul fs del computer\n", file_name, file_extension);
                 error = -1;
                 break;
             }

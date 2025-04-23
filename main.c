@@ -9,7 +9,7 @@
 
 #define TEST_STRING_MAX_LENGTH_BYTES          524288
 #define GENERATED_TEST_STRING_LENGTH_BYTES    7235
-#define TEST_FS_BLOCKS                        10000        // 10000 * 512 ~ 5 MB circa 
+#define TEST_FS_BLOCKS                        20000        // 20000 * 512 ~ 10 MB circa 
 
 // Generatore rubato di stringhe per il testing
 void rand_str(char *dest, size_t length) {
