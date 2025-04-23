@@ -62,7 +62,7 @@ void trash_bash();
 // Restituisce il numero (come definito sopra) del comando scritto dall'utente
 int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, char* second_param_out_buffer, int* more_params_found);
 
-int tb_create_new_fs_on_file(const char* filename);
+int tb_create_new_fs_on_file(const char* filename, unsigned int n_blocks);
 
 int tb_mount_fs_from_file(const char* filename, TRASHBASH_PATH* path);
 int tb_unmount_fs(TRASHBASH_PATH* path);

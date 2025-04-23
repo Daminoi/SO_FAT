@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 #include "fatFS.h"
 #include "trashBash.h"
@@ -12,12 +13,12 @@
 #include "fsUtils.h"
 #include "minilogger.h"
 
-int tb_create_new_fs_on_file(const char* filename){
+int tb_create_new_fs_on_file(const char* filename, unsigned int n_blocks){
     if(filename == NULL){
         return -1;
     }
 
-    return create_fs_on_file(filename, 100000);
+    return create_fs_on_file(filename, n_blocks);
 }
 
 int tb_mount_fs_from_file(const char* filename, TRASHBASH_PATH* path){
@@ -408,7 +409,7 @@ void tb_print_version_info(){
 void print_help(){
     printf("Lista di comandi disponibili:\n\n");
 
-    printf("> %s [nome_nuovo_file_su_computer]  : crea un nuovo fs_fat sul file 'nome_nuovo_file_su_computer' (nel file system vero di questo computer) che sarà poi possibile montare\n", TB_CREATE_FS_ON_FILE_STRING);
+    printf("> %s [nome_nuovo_file_su_computer] [numero_di_blocchi] : crea un nuovo fs_fat sul file 'nome_nuovo_file_su_computer' (nel file system vero di questo computer) che sarà poi possibile montare. Il nuovo fs avrà il numero di blocchi specificato al secondo parametro\n", TB_CREATE_FS_ON_FILE_STRING);
     printf("> %s [nome_file_su_computer_con_fs] : monta il fs_fat presente sul file 'nomefile_su_computer_con_fs'\n", TB_MOUNT_FS_FROM_FILE_STRING);
     printf("> %s                                : esegue l'unmount del fs attualmente montato\n", TB_UNMOUNT_STRING);
 
@@ -424,7 +425,7 @@ void print_help(){
     printf("> %s [nome_nuova_cartella]          : crea una nuova cartella di nome 'nome_nuova_cartella' nella cartella attuale, non deve essere già presente una cartella con quel nome\n", TB_CREATE_DIR_STRING);
     printf("> %s [nome_cartella_da_cancellare]  : elimina la cartella di nome 'nome_cartella_da_cancellare' presente nella cartella attuale\n", TB_DELETE_DIR_STRING);
 
-    printf("> %s [nome_file_su_computer] [nome_file_su_questo_FAT_FS]  : copia il file [nome_file_su_computer] sul fs del computer nel file system montato\n", TB_SAVE_FILE_TO_FS_STRING);
+    printf("> %s [nome_file_su_computer] [nome_file_su_questo_FAT_FS] : copia il file [nome_file_su_computer] sul fs del computer nel file system montato\n", TB_SAVE_FILE_TO_FS_STRING);
     printf("> %s [nome_file_da_esportare]  : copia questo file presente sul fs montato nel fs del computer\n", TB_EXPORT_FILE_FROM_FS_STRING);
     
     printf("\n");
@@ -625,9 +626,24 @@ void trash_bash(){
                 error = -1;
                 break;
             }
+            int idx = 0;
+            while(second_param[idx] != '\0'){
+                if(isdigit(second_param[idx]) == false){
+                    printf("Il secondo parametro non è un numero valido\n");
+                    error = -1;
+                    break;
+                }
+                ++idx;
+            }
+            int blocks = atoi(second_param);
+            if(blocks < 0){
+                printf("Il numero di blocchi non può essere negativo\n");
+                error = -1;
+                break;
+            }
 
             // Esecuzione effettiva del comando
-            if(tb_create_new_fs_on_file(first_param)){
+            if(tb_create_new_fs_on_file(first_param, (unsigned int)blocks)){
                 error = -1;
                 break;
             }
