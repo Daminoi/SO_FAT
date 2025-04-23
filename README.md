@@ -5,8 +5,11 @@ La trashbash permette di esplorare il file system emulando una cli.
 
 ## Compilazione ed esecuzione
 Per eseguire compilazione e linking del programma è sufficiente eseguire il comando (nella cartella del progetto):
+
 make
+
 Per avviare il programma (test rapido e poi avvio della trashbash):
+
 ./so_fat_exec
 
 ## Testing
@@ -15,7 +18,9 @@ L'interfaccia che simula una shell è sufficiente per provare le funzionalità e
 ![schermata di aiuto](immagini_descrizione/help.png)
 
 Per rimuovere i messaggi di debug, commentare 
+
 #define DEBUG 
+
 nel file common.h e ricompilare.
 
 ## Esempio
