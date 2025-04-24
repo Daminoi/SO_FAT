@@ -842,7 +842,7 @@ void trash_bash(){
                 break;
             }
 
-            fread(file_content_buffer, file_size, 1, real_file);
+            fread(file_content_buffer, 1, file_size, real_file);
             fclose(real_file);
 
             // Copio il contenuto del buffer nel nuovo file nel mio fs
