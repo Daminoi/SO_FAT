@@ -404,11 +404,15 @@ int erase_file(FILE_HANDLE* file){
 
     // Elimino tutti i blocchi del file (saltando il primo per ora)
     block_num_t next_block_to_free;
+
     block_num_t curr_block_to_free = get_next_block(file->m_fs->fs, file->first_file_block);
+    
     while(curr_block_to_free != LAST_BLOCK){
         next_block_to_free = get_next_block(file->m_fs->fs, curr_block_to_free);
 
         free_block(file->m_fs->fs, curr_block_to_free);
+
+        curr_block_to_free = next_block_to_free;
     }
 
     // Elimino la file entry
