@@ -842,7 +842,7 @@ void trash_bash(){
                 break;
             }
 
-            fread(file_content_buffer, file_size, file_size, real_file);
+            fread(file_content_buffer, 1, file_size, real_file);
             fclose(real_file);
 
             // Copio il contenuto del buffer nel nuovo file nel mio fs
@@ -922,7 +922,7 @@ void trash_bash(){
             }
 
             // Copio il contenuto del buffer sul file nel computer
-            fwrite(temp_buffer, my_file_size, my_file_size, new_real_file);
+            fwrite(temp_buffer, 1, my_file_size, new_real_file);
             break;
 
         case TB_UNKNOWN_COMMAND:
