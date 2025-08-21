@@ -141,6 +141,15 @@ int tb_list(TRASHBASH_PATH* path){
     return 0;
 }
 
+int tb_show_fs_info(TRASHBASH_PATH* path){
+    FAT_FS* fs = path->m_fs->fs;
+
+    FAT_FS_HEADER* header = get_fs_header(fs);
+    printf("Blocchi liberi: %u di %u totali (Circa ~ %u Bytes liberi)\nPrimo blocco libero che sarà assegnato: %u\n", header->n_free_blocks, header->n_blocks, header->n_free_blocks * BLOCK_SIZE, header->first_free_block);
+
+    return 0;
+}
+
 int tb_change_dir(TRASHBASH_PATH* path, char* goto_dir_name){
     if(path == NULL || path->m_fs == NULL || goto_dir_name == NULL){
         return -1;
@@ -332,17 +341,8 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     else if(strcmp(cmd_str, TB_CLS_STRING) == 0){
         cmd = TB_CLS;
     }
-    else if(strcmp(cmd_str, TB_QUIT_STRING) == 0){
-        cmd = TB_QUIT;
-    }
-    else if(strcmp(cmd_str, TB_MOUNT_FS_FROM_FILE_STRING) == 0){
-        cmd = TB_MOUNT_FS_FROM_FILE;
-    }
-    else if(strcmp(cmd_str, TB_UNMOUNT_STRING) == 0){
-        cmd = TB_UNMOUNT;
-    }
-    else if(strcmp(cmd_str, TB_CREATE_FS_ON_FILE_STRING) == 0){
-        cmd = TB_CREATE_FS_ON_FILE;
+    else if(strcmp(cmd_str, TB_SHOW_FILESYSTEM_INFO_STRING) == 0){
+        cmd = TB_SHOW_FILESYSTEM_INFO;
     }
     else if(strcmp(cmd_str, TB_CHANGE_DIR_STRING) == 0){
         cmd = TB_CHANGE_DIR;
@@ -374,10 +374,22 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     else if(strcmp(cmd_str, TB_EXPORT_FILE_FROM_FS_STRING) == 0){
         cmd = TB_EXPORT_FILE_FROM_FS;
     }
+    else if(strcmp(cmd_str, TB_MOUNT_FS_FROM_FILE_STRING) == 0){
+        cmd = TB_MOUNT_FS_FROM_FILE;
+    }
+    else if(strcmp(cmd_str, TB_UNMOUNT_STRING) == 0){
+        cmd = TB_UNMOUNT;
+    }
+    else if(strcmp(cmd_str, TB_CREATE_FS_ON_FILE_STRING) == 0){
+        cmd = TB_CREATE_FS_ON_FILE;
+    }
+    else if(strcmp(cmd_str, TB_QUIT_STRING) == 0){
+        cmd = TB_QUIT;
+    }
     else{
         return TB_UNKNOWN_COMMAND;
     }
-
+    
     char* first_param = strtok(NULL, DELIMS);
     if(first_param == NULL){
         first_param_out_buffer[0] = '\0';
@@ -426,7 +438,9 @@ void print_help(){
     printf("> %s [nome_cartella_da_cancellare]  : elimina la cartella di nome 'nome_cartella_da_cancellare' presente nella cartella attuale\n", TB_DELETE_DIR_STRING);
 
     printf("> %s [nome_file_su_computer] [nome_file_su_questo_FAT_FS] : copia il file [nome_file_su_computer] sul fs del computer nel file system montato\n", TB_SAVE_FILE_TO_FS_STRING);
-    printf("> %s [nome_file_da_esportare]  : copia questo file presente sul fs montato nel fs del computer\n", TB_EXPORT_FILE_FROM_FS_STRING);
+    printf("> %s [nome_file_da_esportare]       : copia questo file presente sul fs montato nel fs del computer\n", TB_EXPORT_FILE_FROM_FS_STRING);
+
+    printf("> %s                                : mostra informazioni sul fs attualmente montato\n", TB_SHOW_FILESYSTEM_INFO_STRING);
     
     printf("\n");
     return;
@@ -582,6 +596,21 @@ void trash_bash(){
         case TB_CLS:
             system("clear");
             break;
+        case TB_SHOW_FILESYSTEM_INFO:
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                printf("Nessun filesystem montato\n");
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_show_fs_info(&path)){
+                error = -1;
+                break;
+            }
+
+            break;
         case TB_MOUNT_FS_FROM_FILE:
             // Verifica prerequisiti
             if(fs_mounted(&path)){
@@ -618,6 +647,7 @@ void trash_bash(){
         case TB_CREATE_FS_ON_FILE:
             // Verifica prerequisiti
             if(fs_mounted(&path)){
+                printf("Non è possibile eseguire questo mentre un fs è già montato\n");
                 error = -1;
                 break;
             }

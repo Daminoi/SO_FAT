@@ -47,6 +47,9 @@
 #define TB_EXPORT_FILE_FROM_FS          15
 #define TB_EXPORT_FILE_FROM_FS_STRING   "efff"
 
+#define TB_SHOW_FILESYSTEM_INFO         16
+#define TB_SHOW_FILESYSTEM_INFO_STRING  "sfsi"
+
 #define DELIMS " \t"
 
 #define MAX_PATH_LENGTH 64
