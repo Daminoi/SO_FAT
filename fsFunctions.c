@@ -520,7 +520,7 @@ int set_file_size(FILE_HANDLE *file, unsigned int new_size){
         return -1;
     }
 
-    mini_log(LOG, "set_file_size", "Cambiata dimensione del file");
+    //mini_log(LOG, "set_file_size", "Cambiata dimensione del file");
     de->file.file_size = new_size;
     return 0;
 }

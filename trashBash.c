@@ -150,6 +150,32 @@ int tb_show_fs_info(TRASHBASH_PATH* path){
     return 0;
 }
 
+int tb_print_fat(TRASHBASH_PATH* path){
+    FAT_FS* fs = path->m_fs->fs;
+
+    FAT_FS_HEADER* header = get_fs_header(fs);
+    FAT_ENTRY* fat = get_fs_fat(fs);
+
+    block_num_t block_tot = header->n_blocks;
+
+    printf("\n   Indice     Stato         Successivo\n\n");
+
+    for(block_num_t i = 0; i < block_tot; ++i){
+        printf("%9u %14s ", i, fat[i].block_status == FREE_BLOCK ? "Libero    " : "Allocato  ");
+        
+        if(fat[i].next_block == LAST_BLOCK){
+            printf("%9s\n", "Ultimo");
+        }
+        else{
+            printf("%9u\n", fat[i].next_block);
+        }
+    }
+    
+    printf("\n");
+
+    return 0;
+}
+
 int tb_change_dir(TRASHBASH_PATH* path, char* goto_dir_name){
     if(path == NULL || path->m_fs == NULL || goto_dir_name == NULL){
         return -1;
@@ -353,6 +379,9 @@ int tb_parse_input(char* user_input_in_buffer, char* first_param_out_buffer, cha
     else if(strcmp(cmd_str, TB_LIST_STRING) == 0){
         cmd = TB_LIST;
     }
+    else if(strcmp(cmd_str, TB_PRINT_FAT_STRING) == 0){
+        cmd = TB_PRINT_FAT;
+    }
     else if(strcmp(cmd_str, TB_TREE_STRING) == 0){
         cmd = TB_TREE;
     }
@@ -441,6 +470,7 @@ void print_help(){
     printf("> %s [nome_file_da_esportare]       : copia questo file presente sul fs montato nel fs del computer\n", TB_EXPORT_FILE_FROM_FS_STRING);
 
     printf("> %s                                : mostra informazioni sul fs attualmente montato\n", TB_SHOW_FILESYSTEM_INFO_STRING);
+    printf("> %s                                : scrive sul terminale la FAT del fs montato\n", TB_PRINT_FAT_STRING);
     
     printf("\n");
     return;
@@ -606,6 +636,21 @@ void trash_bash(){
 
             // Esecuzione effettiva del comando
             if(tb_show_fs_info(&path)){
+                error = -1;
+                break;
+            }
+
+            break;
+        case TB_PRINT_FAT:
+            // Verifica prerequisiti
+            if(fs_mounted(&path) == false){
+                printf("Nessun filesystem montato\n");
+                error = -1;
+                break;
+            }
+
+            // Esecuzione effettiva del comando
+            if(tb_print_fat(&path)){
                 error = -1;
                 break;
             }

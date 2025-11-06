@@ -49,6 +49,8 @@
 
 #define TB_SHOW_FILESYSTEM_INFO         16
 #define TB_SHOW_FILESYSTEM_INFO_STRING  "sfsi"
+#define TB_PRINT_FAT                    17
+#define TB_PRINT_FAT_STRING             "pfat"
 
 #define DELIMS " \t"
 

@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "fatFS.h"
 #include "fsUtils.h"
@@ -14,6 +15,7 @@
 // Generatore rubato di stringhe per il testing
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?";
+    srand(time(NULL));
 
     while (length-- > 0) {
         size_t index = (double) rand() / RAND_MAX * (sizeof charset - 1);
@@ -24,7 +26,7 @@ void rand_str(char *dest, size_t length) {
 
 int main(){
 
-    printf("\n\tTESTER-> fatFS versione %d\n\n", CURRENT_FS_VERSION);
+    printf("\n\tTESTER-> MyFAT versione %d\n\n", CURRENT_FS_VERSION);
 
     const int expected_tests = 5; // DA AGGIORNARE IN BASE AL NUMERO DI TEST SCRITTI
     
