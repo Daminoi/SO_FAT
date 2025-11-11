@@ -28,9 +28,9 @@ int create_fs_on_file(const char* file_name, block_num_t n_blocks){
     // Calcolo dello spazio necessario per l'intero fs, in byte
     unsigned long file_size = 0;
 
-    if(n_blocks <= 100){
-        printf("Chiesto fs da %d blocchi, verrà allocato da 1001 blocchi (dimensione minima di 100 non raggiunta).\n", n_blocks);
-        n_blocks = 1000 + 1; // (il blocco in più è per la root directory)
+    if(n_blocks <= 19){
+        printf("Chiesto fs da %d blocchi, verrà allocato da 101 blocchi (dimensione minima di 20 non raggiunta).\n", n_blocks);
+        n_blocks = 101; // (il blocco in più è per la root directory)
     }
 
     // Dimensione delle informazioni sul fs
